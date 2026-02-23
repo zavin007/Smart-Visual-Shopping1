@@ -1,0 +1,10 @@
+tensorflow
+pandas
+numpy
+scikit-learn
+streamlit
+pillow
+tqdm
+selenium
+beautifulsoup4
+webdriver-manager
