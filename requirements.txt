@@ -8,3 +8,4 @@ tqdm
 selenium
 beautifulsoup4
 webdriver-manager
+requests

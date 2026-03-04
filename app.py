@@ -5,6 +5,7 @@ from src.feature_extractor import FeatureExtractor
 from src.recommender import Recommender
 from src.scraper import WebScraper
 from src.smart_recognizer import SmartProductRecognizer
+from src.bg_shader import inject_shader_background
 import os
 
 # Page Config
@@ -18,7 +19,20 @@ with st.sidebar:
     
     if learning_mode:
         st.success("📚 AI will learn from your uploads!")
+        
+    # Hardcoded API Key (Hidden from UI for cleaner presentation)
+    # Get a free key at serpapi.com and paste it between the quotes below
+    serpapi_key = "b812872ae05ca9ba5e74409cc5a8351716e3e3e627ca9a6534e43b7e8b5010a2" 
     
+# Always apply WebGL Background
+inject_shader_background()
+st.markdown("""
+<style>
+    .stApp {
+        background: transparent !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 
 # Apply Dark Mode CSS
@@ -27,28 +41,22 @@ if dark_mode:
     # Modern Dark Theme
     st.markdown("""
     <style>
-        .stApp {
-            background: linear-gradient(rgba(0,0,0,0.7), rgba(0,0,0,0.7)), url("https://images.unsplash.com/photo-1604014237800-1c9102c219da?q=80&w=1920&auto=format&fit=crop");
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
-        }
         
         /* Titles and Text */
-        h1, h2, h3, h4, h5, h6, .stMarkdown, p, span, label {
+        h1, h2, h3, h4, h5, h6, .stMarkdown, p, span, label, div {
             color: #ffffff !important;
             font-family: 'Helvetica Neue', sans-serif;
         }
         
-        /* Glassmorphism Containers */
-        [data-testid="stVerticalBlock"] > div {
-            background: rgba(20, 20, 20, 0.6);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+        /* Glassmorphism Containers - Invisible Boundaries */
+        [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
+            background: rgba(20, 20, 20, 0.2);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            border: none !important;
             padding: 20px;
-            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            box-shadow: none !important;
         }
         
         /* Premium Buttons */
@@ -72,6 +80,21 @@ if dark_mode:
         [data-testid="stSidebar"] {
             background-color: rgba(10, 10, 10, 0.9);
             border-right: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        /* Sidebar Toggle Button Fix */
+        button[kind="header"] {
+            background-color: rgba(20, 20, 20, 0.5) !important;
+            border-radius: 50% !important;
+            box-shadow: 0 0 10px rgba(255,255,255,0.2) !important;
+            backdrop-filter: blur(5px);
+        }
+        button[kind="header"] svg, 
+        [data-testid="collapsedControl"] svg,
+        .st-emotion-cache-1vt4ygl svg {
+            fill: #ffffff !important;
+            color: #ffffff !important;
+            stroke: #ffffff !important;
         }
         
         /* Input Fields */
@@ -121,22 +144,19 @@ else:
     # Modern Light Theme
     st.markdown("""
     <style>
-        .stApp {
-            background: linear-gradient(rgba(255,255,255,0.8), rgba(255,255,255,0.8)), url("https://images.unsplash.com/photo-1557821552-17105176677c?q=80&w=1920&auto=format&fit=crop");
-            background-size: cover;
-            background-position: center;
-            background-attachment: fixed;
+        /* Force text colors to be dark and readable */
+        h1, h2, h3, h4, h5, h6, .stMarkdown, p, span, label, div {
+            color: #1a1a1a !important;
         }
-        
-        /* Glassmorphism Containers */
-        [data-testid="stVerticalBlock"] > div {
-            background: rgba(255, 255, 255, 0.65);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+        /* Glassmorphism Containers - Invisible Boundaries */
+        [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
+            background: rgba(255, 255, 255, 0.3);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
             border-radius: 16px;
-            border: 1px solid rgba(255, 255, 255, 0.4);
+            border: none !important;
             padding: 20px;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            box-shadow: none !important;
         }
         
         /* Premium Buttons */
@@ -303,11 +323,18 @@ with col1:
                     else:
                         st.toast(f"Learning skipped: {result}", icon="⚠️")
             
-            # 4. Search using AI-detected product description
-            with st.spinner(f'🌐 Searching "{search_query}" across 5 platforms...'):
+            # 4. Search using AI-detected product description or Google Lens
+            temp_path = "temp_query.jpg"
+            image.convert("RGB").save(temp_path, "JPEG")
+            
+            with st.spinner(f'🌐 Searching for best prices...'):
                 try:
                     scraper = WebScraper()
-                    live_results = scraper.search_all(search_query)
+                    if serpapi_key:
+                        st.info("🔍 Initializing Deep Web Visual Search...")
+                        live_results = scraper.scraper_backend_search(temp_path, serpapi_key)
+                    else:
+                        live_results = scraper.search_all(search_query)
                     
                     if live_results:
                         results = pd.DataFrame(live_results)
@@ -347,7 +374,11 @@ with col2:
         # Display the matched product info
         match_col_a, match_col_b = st.columns([1, 3])
         with match_col_a:
-            st.image(st.session_state['match_img'], caption="Visual Match", width=150)
+            item = st.session_state['best_deal']
+            # Prioritize live thumbnail over low-res local db image
+            display_img = item.get('thumbnail') if isinstance(item, dict) and item.get('thumbnail') else st.session_state['match_img']
+            st.image(display_img, caption="Visual Match", width=150)
+            
         with match_col_b:
             item = st.session_state['best_deal']
             product_display_name = st.session_state.get('product_name', item.get('product_name', 'Unknown'))
@@ -390,9 +421,60 @@ with col2:
 
     else:
         st.info("👈 Upload an image to start searching.")
-        st.markdown("""
-        ### How it works:
-        1. **Deep Learning (CNN)** extracts features from your image.
-        2. **Nearest Neighbors** finds the exact product in our database.
-        3. **Price Aggregator** fetches real-time (simulated) prices from vendors.
-        """)
+        
+        st.markdown("---")
+        st.markdown("### 🛍️ Live Price Discovery Showcase")
+        st.markdown("Watch how VisionCart finds the best deals across the internet in real-time.")
+        
+        # Auto-playing mock carousel
+        import time as time_module
+        import math
+        
+        # Define 3 exciting demo products
+        demo_products = [
+            {
+                "name": "Nike Air Max 270",
+                "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop",
+                "prices": [("Amazon", 12999), ("Flipkart", 11499), ("Myntra", 13200)],
+                "desc": "Detecting features: Mesh upper, Air unit..."
+            },
+            {
+                "name": "Sony WH-1000XM5",
+                "image": "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?q=80&w=600&auto=format&fit=crop",
+                "prices": [("Amazon", 29990), ("Croma", 32000), ("Reliance", 28500)],
+                "desc": "Analyzing shape: Over-ear, matte finish..."
+            },
+            {
+                "name": "Apple Watch Series 9",
+                "image": "https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?q=80&w=600&auto=format&fit=crop",
+                "prices": [("Amazon", 41900), ("Flipkart", 40500), ("Apple", 41900)],
+                "desc": "Identifying brand: Apple, aluminum case..."
+            }
+        ]
+        
+        # Cycle through them based on current time
+        cycle_time = 4.0 # seconds per slide
+        current_idx = int(math.floor(time_module.time() / cycle_time)) % len(demo_products)
+        product = demo_products[current_idx]
+        
+        # Render the showcase card
+        with st.container():
+            st.markdown(f"#### 🔍 Live Scan: **{product['name']}**")
+            
+            c1, c2 = st.columns([1, 1.5])
+            with c1:
+                st.image(product['image'], use_container_width=True, caption=product['desc'])
+            
+            with c2:
+                # Find the lowest price
+                best_price = min([p[1] for p in product['prices']])
+                
+                for vendor, price in product['prices']:
+                    if price == best_price:
+                        st.success(f"🔥 **{vendor}**: ₹{price:,} (Best Deal!)")
+                    else:
+                        st.info(f"🏬 **{vendor}**: ₹{price:,}")
+                        
+        # Auto-rerun trick to make the carousel animate
+        time_module.sleep(1)
+        st.rerun()
