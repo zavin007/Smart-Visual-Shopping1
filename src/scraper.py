@@ -39,7 +39,7 @@ class WebScraper:
     def scraper_backend_search(self, image_path, api_key):
         """
         True Reverse Image Search using Deep Web search engine.
-        Finds exact product matches across the internet based purely on the image.
+        Mimics the native Google Lens experience by returning high-volume raw visual matches.
         """
         results = []
         try:
@@ -50,9 +50,9 @@ class WebScraper:
             if not public_url:
                 raise Exception("Failed to get public image URL")
                 
-            print(f"[INFO] Sending to Deep Web Search API...")
+            print(f"[INFO] Sending to Deep Web Search API (Native Lens Mode)...")
             
-            # 2. Call SerpApi
+            # 2. Call SerpApi Google Lens
             params = {
                 "engine": "google_lens",
                 "url": public_url,
@@ -62,66 +62,48 @@ class WebScraper:
             response = requests.get("https://serpapi.com/search", params=params, timeout=30)
             data = response.json()
             
-            # 3. Parse Visual Matches
+            # 3. Parse RAW Visual Matches (High Volume)
             if "visual_matches" in data:
                 matches = data["visual_matches"]
                 
-                # Trusted domains we want to show
-                trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'ajio', 'nykaa', 'tata', 'snapdeal', 'ebay']
-                
                 for match in matches:
-                    # Need at least 6 results, or keep going if we haven't found enough trusted ones
-                    if len(results) >= 6:
+                    # Allow up to 24 results for a full "Google Lens" experience
+                    if len(results) >= 24:
                         break
                         
-                    # Only grab matches with price (shopping items)
                     if "price" in match:
-                        vendor = match.get("source", "Web Store").lower()
+                        vendor_raw = match.get("source", "Web Store")
                         
-                        # Filter for trusted vendors
-                        is_trusted = False
-                        for trusted in trusted_vendors:
-                            if trusted in vendor:
-                                is_trusted = True
-                                vendor = trusted.capitalize() # clean up the name
-                                if vendor == 'Tata': vendor = 'Tata CLiQ'
-                                break
-                        
-                        if not is_trusted:
-                            continue # Skip unknown websites
-                            
+                        # Currency Formatting
+                        currency = match["price"].get("currency", "")
                         price_str = match["price"].get("extracted_value", 0)
                         try:
                             price = float(price_str)
-                            # Convert USD to INR roughly if needed, assume INR if > 100, else multiply by 83
-                            if match["price"].get("currency") == "$":
-                                price = price * 83.0
-                            elif price < 200: 
-                                price = price * 83.0 # safe fallback
+                            # Convert USD to INR 
+                            if currency == "$" or price < 200:
+                                price = price * 84.0 
                         except:
                             continue
                             
                         title = match.get("title", "Product Match")[:50] + "..."
-                        link = match.get("link", "")
-                        thumbnail = match.get("thumbnail", "")
                         
                         results.append({
-                            'vendor': vendor,
+                            'vendor': vendor_raw,
                             'product_name': title,
                             'price': int(price),
-                            'url': link,
-                            'thumbnail': thumbnail
+                            'url': match.get("link", ""),
+                            'thumbnail': match.get("thumbnail", "")
                         })
             
             if results:
                 # Sort by price
                 results.sort(key=lambda x: x['price'])
-                print(f"[OK] Deep Web Search found {len(results)} trusted shopping matches!")
+                print(f"[OK] Google Lens returned {len(results)} exact visual matches!")
             else:
                 print("[WARN] Google Lens found no priced items. Falling back...")
                 
         except Exception as e:
-            print(f"[ERROR] Google Lens API failure: {e}")
+            print(f"[ERROR] API failure: {e}")
             
         return results
 

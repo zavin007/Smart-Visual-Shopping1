@@ -38,14 +38,39 @@ st.markdown("""
 # Apply Dark Mode CSS
 # Apply Premium Styling
 if dark_mode:
-    # Modern Dark Theme
+    # Modern Dark Theme + Custom Fonts
     st.markdown("""
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700;800&display=swap');
         
-        /* Titles and Text */
-        h1, h2, h3, h4, h5, h6, .stMarkdown, p, span, label, div {
+        /* Apply Base Font */
+        html, body, [class*="css"] {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Stylize Headers with Gradient and Premium Font */
+        h1, h2, h3 {
+            font-family: 'Outfit', sans-serif !important;
+        }
+        
+        /* Keep main H1 simple */
+        h1 {
             color: #ffffff !important;
-            font-family: 'Helvetica Neue', sans-serif;
+            font-weight: 800 !important;
+            letter-spacing: -1px;
+        }
+        
+        /* Make smaller text eye-catching */
+        p, .stMarkdown p {
+            color: rgba(255, 255, 255, 0.9) !important;
+            font-size: 1.1rem !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Make subheadings white */
+        h2, h3, h4, h5, h6 {
+            color: #ffffff !important;
+            font-weight: 700 !important;
         }
         
         /* Glassmorphism Containers - Invisible Boundaries */
@@ -141,12 +166,39 @@ if dark_mode:
     </style>
     """, unsafe_allow_html=True)
 else:
-    # Modern Light Theme
+    # Modern Light Theme + Custom Fonts
     st.markdown("""
     <style>
-        /* Force text colors to be dark and readable */
-        h1, h2, h3, h4, h5, h6, .stMarkdown, p, span, label, div {
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@500;700;800&display=swap');
+        
+        /* Apply Base Font */
+        html, body, [class*="css"] {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        /* Stylize Headers with Gradient and Premium Font */
+        h1, h2, h3 {
+            font-family: 'Outfit', sans-serif !important;
+        }
+        
+        /* Keep main H1 simple and dark */
+        h1 {
             color: #1a1a1a !important;
+            font-weight: 800 !important;
+            letter-spacing: -1px;
+        }
+        
+        /* Make smaller text eye-catching */
+        p, .stMarkdown p {
+            color: #4a5568 !important;
+            font-size: 1.1rem !important;
+            font-weight: 500 !important;
+        }
+        
+        /* Make subheadings dark */
+        h2, h3, h4, h5, h6 {
+            color: #2d3748 !important;
+            font-weight: 700 !important;
         }
         /* Glassmorphism Containers - Invisible Boundaries */
         [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
@@ -200,12 +252,21 @@ def load_engine_v2():
         return fe, None, recognizer
     return fe, rec, recognizer
 
-fe, rec, recognizer = load_engine_v2()
+# Load local offline data
+@st.cache_data
+def load_local_prices():
+    try:
+        return pd.read_csv("data/product_prices.csv")
+    except:
+        # Return empty dataframe instead of None
+        return pd.DataFrame(columns=["product_id", "product_name", "vendor", "price", "url", "filename"])
 
-if not rec:
-    st.error("⚠️ Data index not found! Please run the data setup script first.")
-    st.code("python create_data.py")
-    st.stop()
+fe, rec, recognizer = load_engine_v2()
+df_local = load_local_prices()
+
+# Gracefully handle fresh Github clones without local data
+if rec is None or df_local.empty:
+    st.sidebar.warning("⚠️ Offline Data is missing (Fresh GitHub Clone). The app will run in 'Live Deep Web Search' mode only!")
 
 # --- Online Learning: Add image to database ---
 import numpy as np
@@ -221,6 +282,9 @@ def add_to_database(image, search_query):
         timestamp = int(time_module.time() * 1000)
         clean_name = search_query.replace(' ', '_').replace('/', '_')[:30]
         filename = f"{clean_name}_{timestamp}.jpg"
+        
+        # Auto-create data directories for fresh GitHub clones
+        os.makedirs(os.path.join("data", "images"), exist_ok=True)
         save_path = os.path.join("data", "images", filename)
         
         # Save image
@@ -232,29 +296,33 @@ def add_to_database(image, search_query):
         features = fe.extract(image)
         
         # Update the database (append to DataFrame)
+        import pandas as pd
         features_path = os.path.join("data", "features.pkl")
+        
         if os.path.exists(features_path):
-            import pandas as pd
             df = pd.read_pickle(features_path)
+        else:
+            # Auto-initialize database if missing
+            df = pd.DataFrame(columns=['product_id', 'image_path', 'features'])
             
-            # Generate new product ID
-            new_id = int(timestamp % 100000)
-            
-            # Append new entry
-            new_row = pd.DataFrame([{
-                'product_id': new_id,
-                'image_path': save_path,
-                'features': features
-            }])
-            df = pd.concat([df, new_row], ignore_index=True)
-            
-            # Save updated database
-            df.to_pickle(features_path)
-            
-            # Reload recommender in next run (clear cache)
-            st.cache_resource.clear()
-            
-            return True, filename
+        # Generate new product ID
+        new_id = int(timestamp % 100000)
+        
+        # Append new entry
+        new_row = pd.DataFrame([{
+            'product_id': new_id,
+            'image_path': save_path,
+            'features': features
+        }])
+        df = pd.concat([df, new_row], ignore_index=True)
+        
+        # Save updated database
+        df.to_pickle(features_path)
+        
+        # Reload recommender in next run (clear cache)
+        st.cache_resource.clear()
+        
+        return True, filename
     except Exception as e:
         print(f"[ERROR] Failed to add to database: {e}")
         return False, str(e)
@@ -294,7 +362,10 @@ with col1:
                 query_feat = fe.extract(image)
                 
                 # 2. Find closest match in DB (for showing similar product)
-                product_id, match_img_path, dist = rec.find_similar(query_feat)
+                if rec:
+                    product_id, match_img_path, dist = rec.find_similar(query_feat)
+                else:
+                    product_id, match_img_path, dist = None, None, 0.0
                 
                 # 3. Use Smart AI to identify the product
                 # This uses OCR for brands + BLIP for description + classifier for category
@@ -331,7 +402,7 @@ with col1:
                 try:
                     scraper = WebScraper()
                     if serpapi_key:
-                        st.info("🔍 Initializing Deep Web Visual Search...")
+                        st.toast("🔍 Initializing Deep Web Visual Search...")
                         live_results = scraper.scraper_backend_search(temp_path, serpapi_key)
                     else:
                         live_results = scraper.search_all(search_query)
@@ -344,22 +415,34 @@ with col1:
                         st.session_state['searched'] = True
                         st.session_state['is_live'] = True
                     else:
-                        st.warning("No live results found. Using database fallback.")
-                        results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                        best_deal = results.iloc[0]
-                        st.session_state['results'] = results
-                        st.session_state['best_deal'] = best_deal
-                        st.session_state['searched'] = True
-                        st.session_state['is_live'] = False
+                        st.warning("No live results found. Trying database fallback...")
+                        if not df_local.empty and product_id is not None:
+                            results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
+                            if not results.empty:
+                                best_deal = results.iloc[0]
+                                st.session_state['results'] = results
+                                st.session_state['best_deal'] = best_deal
+                                st.session_state['searched'] = True
+                                st.session_state['is_live'] = False
+                            else:
+                                st.error("No matching products found offline either.")
+                        else:
+                            st.error("Offline database is unavailable.")
                 except Exception as e:
                     st.error(f"Live search failed: {e}")
-                    st.info("Falling back to database...")
-                    results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                    best_deal = results.iloc[0]
-                    st.session_state['results'] = results
-                    st.session_state['best_deal'] = best_deal
-                    st.session_state['searched'] = True
-                    st.session_state['is_live'] = False
+                    if not df_local.empty and product_id is not None:
+                        st.info("Falling back to database...")
+                        results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
+                        if not results.empty:
+                            best_deal = results.iloc[0]
+                            st.session_state['results'] = results
+                            st.session_state['best_deal'] = best_deal
+                            st.session_state['searched'] = True
+                            st.session_state['is_live'] = False
+                        else:
+                            st.error("Offline fallback also failed.")
+                    else:
+                        st.error("Cannot fall back: Offline database is missing.")
 
 with col2:
     if st.session_state.get('searched'):
