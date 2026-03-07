@@ -1,10 +1,6 @@
 import streamlit as st
 import pandas as pd
 from PIL import Image
-from src.feature_extractor import FeatureExtractor
-from src.recommender import Recommender
-from src.scraper import WebScraper
-from src.smart_recognizer import SmartProductRecognizer
 from src.bg_shader import inject_shader_background
 import os
 
@@ -238,12 +234,25 @@ else:
 
 
 st.title("🛍️ Smart Visual Shopping & Price Discovery")
-st.markdown("Upload a product image to find the lowest price across platforms (Amazon, Flipkart, Myntra).")
+st.markdown("""
+<style>
+    .white-text p {
+        color: #ffffff !important;
+    }
+</style>
+<div class="white-text">
+    <p style="font-size: 1.1rem; font-weight: 500;">Upload a product image to find the lowest price across platforms (Amazon, Flipkart, Myntra).</p>
+</div>
+""", unsafe_allow_html=True)
 
 
 # Initialize Engine
 @st.cache_resource
 def load_engine_v2():
+    from src.feature_extractor import FeatureExtractor
+    from src.recommender import Recommender
+    from src.smart_recognizer import SmartProductRecognizer
+
     fe = FeatureExtractor()
     recognizer = SmartProductRecognizer()
     try:
@@ -258,15 +267,15 @@ def load_local_prices():
     try:
         return pd.read_csv("data/product_prices.csv")
     except:
-        # Return empty dataframe instead of None
-        return pd.DataFrame(columns=["product_id", "product_name", "vendor", "price", "url", "filename"])
+        return None
 
 fe, rec, recognizer = load_engine_v2()
 df_local = load_local_prices()
 
-# Gracefully handle fresh Github clones without local data
-if rec is None or df_local.empty:
-    st.sidebar.warning("⚠️ Offline Data is missing (Fresh GitHub Clone). The app will run in 'Live Deep Web Search' mode only!")
+if not rec or df_local is None:
+    st.error("⚠️ Data index not found! Please run the data setup script first.")
+    st.code("python create_data.py")
+    st.stop()
 
 # --- Online Learning: Add image to database ---
 import numpy as np
@@ -282,9 +291,6 @@ def add_to_database(image, search_query):
         timestamp = int(time_module.time() * 1000)
         clean_name = search_query.replace(' ', '_').replace('/', '_')[:30]
         filename = f"{clean_name}_{timestamp}.jpg"
-        
-        # Auto-create data directories for fresh GitHub clones
-        os.makedirs(os.path.join("data", "images"), exist_ok=True)
         save_path = os.path.join("data", "images", filename)
         
         # Save image
@@ -296,33 +302,29 @@ def add_to_database(image, search_query):
         features = fe.extract(image)
         
         # Update the database (append to DataFrame)
-        import pandas as pd
         features_path = os.path.join("data", "features.pkl")
-        
         if os.path.exists(features_path):
+            import pandas as pd
             df = pd.read_pickle(features_path)
-        else:
-            # Auto-initialize database if missing
-            df = pd.DataFrame(columns=['product_id', 'image_path', 'features'])
             
-        # Generate new product ID
-        new_id = int(timestamp % 100000)
-        
-        # Append new entry
-        new_row = pd.DataFrame([{
-            'product_id': new_id,
-            'image_path': save_path,
-            'features': features
-        }])
-        df = pd.concat([df, new_row], ignore_index=True)
-        
-        # Save updated database
-        df.to_pickle(features_path)
-        
-        # Reload recommender in next run (clear cache)
-        st.cache_resource.clear()
-        
-        return True, filename
+            # Generate new product ID
+            new_id = int(timestamp % 100000)
+            
+            # Append new entry
+            new_row = pd.DataFrame([{
+                'product_id': new_id,
+                'image_path': save_path,
+                'features': features
+            }])
+            df = pd.concat([df, new_row], ignore_index=True)
+            
+            # Save updated database
+            df.to_pickle(features_path)
+            
+            # Reload recommender in next run (clear cache)
+            st.cache_resource.clear()
+            
+            return True, filename
     except Exception as e:
         print(f"[ERROR] Failed to add to database: {e}")
         return False, str(e)
@@ -362,10 +364,7 @@ with col1:
                 query_feat = fe.extract(image)
                 
                 # 2. Find closest match in DB (for showing similar product)
-                if rec:
-                    product_id, match_img_path, dist = rec.find_similar(query_feat)
-                else:
-                    product_id, match_img_path, dist = None, None, 0.0
+                product_id, match_img_path, dist = rec.find_similar(query_feat)
                 
                 # 3. Use Smart AI to identify the product
                 # This uses OCR for brands + BLIP for description + classifier for category
@@ -400,6 +399,7 @@ with col1:
             
             with st.spinner(f'🌐 Searching for best prices...'):
                 try:
+                    from src.scraper import WebScraper
                     scraper = WebScraper()
                     if serpapi_key:
                         st.toast("🔍 Initializing Deep Web Visual Search...")
@@ -412,37 +412,27 @@ with col1:
                         best_deal = results.iloc[0]  # Already sorted by price
                         st.session_state['results'] = results
                         st.session_state['best_deal'] = best_deal
+                        # Override local AI guess (like "Perfume") with the REAL deep web extracted name!
+                        st.session_state['product_name'] = best_deal.get('product_name', 'Unknown')
                         st.session_state['searched'] = True
                         st.session_state['is_live'] = True
                     else:
-                        st.warning("No live results found. Trying database fallback...")
-                        if not df_local.empty and product_id is not None:
-                            results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                            if not results.empty:
-                                best_deal = results.iloc[0]
-                                st.session_state['results'] = results
-                                st.session_state['best_deal'] = best_deal
-                                st.session_state['searched'] = True
-                                st.session_state['is_live'] = False
-                            else:
-                                st.error("No matching products found offline either.")
-                        else:
-                            st.error("Offline database is unavailable.")
+                        st.warning("No live results found. Using database fallback.")
+                        results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
+                        best_deal = results.iloc[0]
+                        st.session_state['results'] = results
+                        st.session_state['best_deal'] = best_deal
+                        st.session_state['searched'] = True
+                        st.session_state['is_live'] = False
                 except Exception as e:
                     st.error(f"Live search failed: {e}")
-                    if not df_local.empty and product_id is not None:
-                        st.info("Falling back to database...")
-                        results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                        if not results.empty:
-                            best_deal = results.iloc[0]
-                            st.session_state['results'] = results
-                            st.session_state['best_deal'] = best_deal
-                            st.session_state['searched'] = True
-                            st.session_state['is_live'] = False
-                        else:
-                            st.error("Offline fallback also failed.")
-                    else:
-                        st.error("Cannot fall back: Offline database is missing.")
+                    st.info("Falling back to database...")
+                    results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
+                    best_deal = results.iloc[0]
+                    st.session_state['results'] = results
+                    st.session_state['best_deal'] = best_deal
+                    st.session_state['searched'] = True
+                    st.session_state['is_live'] = False
 
 with col2:
     if st.session_state.get('searched'):
@@ -468,7 +458,6 @@ with col2:
             st.markdown(f"**Identified Product:** {product_display_name}")
             st.success(f"🔥 **Best Deal:** ₹{item['price']} on {item['vendor']}")
         
-        st.write("---")
         st.subheader("📊 Price Comparison")
         
         # Pretty List with Buy Buttons
@@ -481,11 +470,26 @@ with col2:
             
             with st.container():
                 # layout
-                c1, c2, c3 = st.columns([2, 1, 1])
+                c_img, c1, c2, c3 = st.columns([1, 2, 1, 1])
+                
+                with c_img:
+                    # Try to get live thumbnail or fallback to local image
+                    thumb_url = row.get('thumbnail', '')
+                    if pd.isna(thumb_url) or not thumb_url:
+                        if 'filename' in row and not pd.isna(row['filename']):
+                            thumb_url = os.path.join("data", "images", str(row['filename']))
+                    
+                    if thumb_url:
+                        try:
+                            st.image(thumb_url, width=50)
+                        except:
+                            st.markdown("🛍️")
+                    else:
+                        st.markdown("🛍️")
                 
                 with c1:
                     if is_best:
-                        st.markdown(f"**{row['vendor']}**  Start ⭐ (Best Price)")
+                        st.markdown(f"**{row['vendor']}** ⭐ (Best Price)")
                     else:
                         st.markdown(f"**{row['vendor']}**")
                 
@@ -493,7 +497,9 @@ with col2:
                     st.markdown(f"**₹{row['price']}**")
                     
                 with c3:
-                    st.link_button("Buy Now 🔗", row['url'])
+                    url = row.get('url', '#')
+                    if pd.isna(url): url = '#'
+                    st.link_button("Buy Now 🔗", url)
                 
                 st.divider()
         
@@ -505,7 +511,6 @@ with col2:
     else:
         st.info("👈 Upload an image to start searching.")
         
-        st.markdown("---")
         st.markdown("### 🛍️ Live Price Discovery Showcase")
         st.markdown("Watch how VisionCart finds the best deals across the internet in real-time.")
         
