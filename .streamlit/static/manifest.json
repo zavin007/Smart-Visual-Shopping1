@@ -1,0 +1,30 @@
+{
+    "name": "VisionCart AI - Smart Visual Shopping",
+    "short_name": "VisionCart AI",
+    "description": "AI-powered visual product search and price comparison across Indian e-commerce platforms",
+    "start_url": "/",
+    "display": "standalone",
+    "background_color": "#0a0a1a",
+    "theme_color": "#7c3aed",
+    "orientation": "portrait-primary",
+    "icons": [
+        {
+            "src": "./icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any maskable"
+        },
+        {
+            "src": "./icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any maskable"
+        }
+    ],
+    "categories": [
+        "shopping",
+        "utilities"
+    ],
+    "lang": "en",
+    "dir": "ltr"
+}
