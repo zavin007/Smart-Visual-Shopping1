@@ -310,10 +310,13 @@ def load_local_prices():
 
 df_local = load_local_prices()
 
+# --- Cloud Deployment Check ---
+# On Hugging Face (Cloud), we don't have the 40k image dataset.
+# We will run in 'Online-Only' mode if the index is missing.
+cloud_mode = False
 if not rec or df_local is None:
-    st.error("⚠️ Data index not found! Please run the data setup script first.")
-    st.code("python create_data.py")
-    st.stop()
+    cloud_mode = True
+    st.info("☁️ **Cloud Search Mode Active**: Local database skipped to save memory. Online price detection is fully enabled!")
 
 # --- Online Learning: Add image to database ---
 import numpy as np
@@ -402,7 +405,10 @@ with col1:
                 query_feat = fe.extract(image)
                 
                 # 2. Find closest match in DB (for showing similar product)
-                product_id, match_img_path, dist = rec.find_similar(query_feat)
+                if not cloud_mode:
+                    product_id, match_img_path, dist = rec.find_similar(query_feat)
+                else:
+                    product_id, match_img_path, dist = None, None, None
                 
                 # 3. Use Smart AI to identify the product
                 # This uses OCR for brands + BLIP for description + classifier for category
@@ -455,22 +461,28 @@ with col1:
                         st.session_state['searched'] = True
                         st.session_state['is_live'] = True
                     else:
-                        st.warning("No live results found. Using database fallback.")
+                        if not cloud_mode:
+                            st.warning("No live results found. Using database fallback.")
+                            results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
+                            best_deal = results.iloc[0]
+                            st.session_state['results'] = results
+                            st.session_state['best_deal'] = best_deal
+                            st.session_state['searched'] = True
+                            st.session_state['is_live'] = False
+                        else:
+                            st.error("No live results found and local database is unavailable in Cloud Mode.")
+                except Exception as e:
+                    st.error(f"Live search failed: {e}")
+                    if not cloud_mode:
+                        st.info("Falling back to database...")
                         results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
                         best_deal = results.iloc[0]
                         st.session_state['results'] = results
                         st.session_state['best_deal'] = best_deal
                         st.session_state['searched'] = True
                         st.session_state['is_live'] = False
-                except Exception as e:
-                    st.error(f"Live search failed: {e}")
-                    st.info("Falling back to database...")
-                    results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                    best_deal = results.iloc[0]
-                    st.session_state['results'] = results
-                    st.session_state['best_deal'] = best_deal
-                    st.session_state['searched'] = True
-                    st.session_state['is_live'] = False
+                    else:
+                        st.warning("Database fallback is unavailable in Cloud Mode.")
 
 with col2:
     if st.session_state.get('searched'):
