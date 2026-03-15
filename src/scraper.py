@@ -19,7 +19,7 @@ class WebScraper:
             'Flipkart': 'https://www.flipkart.com/search?q=',
             'Myntra': 'https://www.myntra.com/',
             'Meesho': 'https://www.meesho.com/search?q=',
-            'Ajio': 'https://www.ajio.com/search/?text='
+            'Snapdeal': 'https://www.snapdeal.com/search?keyword='
         }
     
     def _upload_temp_image(self, file_path):
@@ -57,7 +57,7 @@ class WebScraper:
         3. Fallback: Only use Google Shopping (text-based) if Lens doesn't have enough matches.
         """
         results = []
-        trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'snapdeal', 'ajio', 'nykaa', 'jiomart', 'tatacliq', 'westside', 'zudio']
+        trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'snapdeal']
         
         try:
             # Stage 1: Identification & Direct Visual Matching
@@ -215,7 +215,7 @@ class WebScraper:
             'Flipkart': (-200, 150),
             'Myntra': (0, 400),
             'Meesho': (-400, -100),
-            'Ajio': (-100, 300)
+            'Snapdeal': (-300, 100)
         }
         
         low, high = variance.get(platform, (-100, 100))
