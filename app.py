@@ -223,7 +223,7 @@ else:
     """, unsafe_allow_html=True)
 
 
-st.title("🛍️ Smart Visual Shopping & Price Discovery")
+st.markdown('<h1 style="font-size: 3rem; font-weight: 900; letter-spacing: -1px;">🛍️ Smart Visual Shopping & Price Discovery</h1>', unsafe_allow_html=True)
 st.markdown("""
 <style>
     .white-text p {
