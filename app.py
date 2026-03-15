@@ -28,10 +28,6 @@ if ('serviceWorker' in navigator) {
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
     dark_mode = st.toggle("🌙 Dark Mode", value=False)
-    learning_mode = st.toggle("🧠 Learning Mode", value=True, help="When ON, uploaded images are added to the database for future searches")
-    
-    if learning_mode:
-        st.success("📚 AI will learn from your uploads!")
         
     # Secure API Key Management
     try:
@@ -438,13 +434,6 @@ with col1:
                 st.session_state['confidence'] = confidence
                 st.session_state['search_query'] = search_query
                 
-                # --- ONLINE LEARNING: Save to database if enabled ---
-                if learning_mode:
-                    success, result = add_to_database(image, search_query)
-                    if success:
-                        st.toast(f"📚 Learned: {result}", icon="✅")
-                    else:
-                        st.toast(f"Learning skipped: {result}", icon="⚠️")
             
             # 4. Search using AI-detected product description or Google Lens
             temp_path = "temp_query.jpg"
