@@ -223,7 +223,7 @@ else:
     """, unsafe_allow_html=True)
 
 
-st.markdown('<h1 style="font-size: 3rem; font-weight: 900; letter-spacing: -1px;">🛍️ Smart Visual Shopping & Price Discovery</h1>', unsafe_allow_html=True)
+st.markdown('<h1 style="font-size: 4.5rem !important; font-weight: 900 !important; letter-spacing: -2px; line-height: 1.1; margin-bottom: 10px;">🛍️ Smart Visual Shopping & Price Discovery</h1>', unsafe_allow_html=True)
 st.markdown("""
 <style>
     .white-text p {
