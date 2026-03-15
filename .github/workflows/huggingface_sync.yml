@@ -16,4 +16,4 @@ jobs:
       - name: Push to hub
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: git push --force https://zavin007:$HF_TOKEN@huggingface.co/spaces/SAVI007/VisionCart main
+        run: git push --force https://SAVI007:$HF_TOKEN@huggingface.co/spaces/SAVI007/VisionCart.git main
