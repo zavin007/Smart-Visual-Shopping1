@@ -19,7 +19,7 @@ class WebScraper:
             'Flipkart': 'https://www.flipkart.com/search?q=',
             'Myntra': 'https://www.myntra.com/',
             'Meesho': 'https://www.meesho.com/search?q=',
-            'Snapdeal': 'https://www.snapdeal.com/search?keyword='
+            'Ajio': 'https://www.ajio.com/search/?text='
         }
     
     def _upload_temp_image(self, file_path):
@@ -57,7 +57,7 @@ class WebScraper:
         3. Fallback: Only use Google Shopping (text-based) if Lens doesn't have enough matches.
         """
         results = []
-        trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'snapdeal', 'ajio', 'nykaa']
+        trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'snapdeal', 'ajio', 'nykaa', 'jiomart', 'tatacliq', 'westside', 'zudio']
         
         try:
             # Stage 1: Identification & Direct Visual Matching
@@ -69,7 +69,8 @@ class WebScraper:
             lens_params = {
                 "engine": "google_lens",
                 "url": public_url,
-                "api_key": api_key
+                "api_key": api_key,
+                "gl": "in"
             }
             lens_resp = requests.get("https://serpapi.com/search", params=lens_params, timeout=30)
             lens_data = lens_resp.json()
@@ -97,28 +98,44 @@ class WebScraper:
                     
                     if not is_trusted: continue
                     
+                    # Convert URLs to Indian versions early
+                    item_url = self._to_indian_url(match.get("link", ""), search_query)
+                    
                     # Clean Price
                     price_val = 0
                     if "price" in match:
                         try:
-                            p_str = match["price"].get("extracted_value", 0)
+                            # Try structured price first
+                            p_str = match["price"].get("extracted_value")
                             currency = match["price"].get("currency", "₹")
+                            
+                            if not p_str:
+                                # Fallback to parsing from current_price string
+                                p_str = ''.join(filter(lambda x: x.isdigit() or x=='.', match["price"].get("current_price", "0")))
+                                
                             p = float(p_str)
-                            if currency == "$" or currency == "USD":
+                            if (currency == "$" or currency == "USD") and p < 200:
                                 p = p * 83.0  # USD to INR
                             elif currency == "£":
                                 p = p * 105.0  # GBP to INR
-                            elif p > 0 and p < 50:
+                            elif p > 0 and p < 100:
                                 p = p * 83.0  # Likely USD if very low
                             price_val = int(p)
                         except: pass
                     
-                    # Skip results with no price
+                    # Final fallback: if vendor is trusted but price is still 0, 
+                    # try extracting from snippet or just assign a dummy value 
+                    # to keep the Visual Match alive (better than generic search)
                     if price_val <= 0:
-                        continue
+                        import re
+                        snippet = match.get("title", "") + " " + vendor_raw
+                        nums = re.findall(r'₹\s?(\d+[,.]?\d*)', snippet)
+                        if nums:
+                            try: price_val = int(nums[0].replace(',', ''))
+                            except: pass
                     
-                    # Convert URLs to Indian versions
-                    item_url = self._to_indian_url(match.get("link", ""), search_query)
+                    # If still 0, we still keep it if it's a direct visual hit
+                    # We'll just show it at the bottom of the list
                     
                     results.append({
                         'vendor': vendor_raw,
@@ -129,10 +146,10 @@ class WebScraper:
                     })
                     if len(results) >= 8: break
 
-            print(f"[INFO] Lens found {len(results)} direct visual matches with prices.")
+            print(f"[INFO] Lens found {len(results)} visual matches.")
 
-            # Stage 2: Google Shopping Fallback (if Lens results are low)
-            if len(results) < 3:
+            # Stage 2: Google Shopping Fallback (Only if direct hits are VERY low)
+            if len(results) < 2:
                 print(f"[INFO] Low visual results. Triggering Google Shopping fallback for '{search_query}'...")
                 shopping_params = {
                     "engine": "google_shopping",
@@ -194,11 +211,11 @@ class WebScraper:
     def _estimate_price(self, base_price, platform):
         # ... existing generic price estimator
         variance = {
-            'Amazon': (-200, 300),
-            'Flipkart': (-300, 200),
-            'Myntra': (0, 500),
-            'Meesho': (-500, -100),
-            'Snapdeal': (-400, 100)
+            'Amazon': (-150, 200),
+            'Flipkart': (-200, 150),
+            'Myntra': (0, 400),
+            'Meesho': (-400, -100),
+            'Ajio': (-100, 300)
         }
         
         low, high = variance.get(platform, (-100, 100))
