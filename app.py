@@ -470,19 +470,31 @@ with col1:
                 detected_brands = analysis.get('brands', [])
                 caption = analysis.get('caption', '') or ''
                 
-                # --- NON-PRODUCT VALIDATION ---
-                # If BLIP identifies something that is clearly NOT a product, warn the user.
+                # --- SMART PRODUCT VALIDATION ---
+                # Allow images even if they contain people (fashion shots) if:
+                # 1. Product keywords are detected in caption
+                # 2. Local classifier is very confident
+                # 3. Brands are detected via OCR
+                
+                fashion_keywords = ['shirt', 'shoes', 'watch', 'jeans', 'tshirt', 'sneakers', 'dress', 'backpack', 'handbag', 'glasses', 'apparel', 'clothing']
+                found_fashion_kw = any(kw in caption_lower for kw in fashion_keywords)
+                
                 non_product_keywords = [
-                    'a group of people', 'a man', 'a woman', 'a person', 'a crowd',
-                    'a room', 'a building', 'a house', 'a street', 'a road', 'a city',
+                    'a crowd', 'a room', 'a building', 'a house', 'a street', 'a road', 'a city',
                     'a field', 'a tree', 'a mountain', 'a sky', 'a dog', 'a cat',
                     'a bird', 'a car', 'a vehicle', 'a landscape', 'nature'
                 ]
-                caption_lower = caption.lower()
-                is_non_product = any(kw in caption_lower for kw in non_product_keywords)
-                if is_non_product and not detected_brands:
-                    st.warning(f"🖼️ This doesn't look like a product image (AI sees: *\"{caption}\"*). Please upload a **clear photo of a product** like clothing, shoes, accessories, or electronics.")
+                is_scenery = any(kw in caption_lower for kw in non_product_keywords)
+                
+                # Logic: Block only if it looks like scenery/non-product AND we have no strong fashion signals
+                if is_scenery and not (found_fashion_kw or detected_brands or confidence > 0.45):
+                    st.warning(f"🖼️ This doesn't look like a product image (AI sees: *\"{caption}\"*). Please upload a **clear photo of a product**.")
                     st.stop()
+                
+                # Special Case: If it's just "a man" or "a person" without any fashion keywords or brand detection
+                elif ('a man' in caption_lower or 'a person' in caption_lower or 'a woman' in caption_lower) and not (found_fashion_kw or detected_brands or confidence > 0.40):
+                     st.warning(f"🖼️ This looks like a person without a clear product focus (AI sees: *\"{caption}\"*). For best results, zoom in on the apparel or accessory.")
+                     st.stop()
 
                 
                 # Show what AI detected
