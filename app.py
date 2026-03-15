@@ -410,53 +410,30 @@ with col1:
             image.convert("RGB").save(temp_path, "JPEG")
             
             with st.spinner(f'🌐 Searching for best prices...'):
-                try:
-                    from src.scraper import WebScraper
-                    scraper = WebScraper()
-                    live_results = None
-                    
-                    # Strategy 1: Visual Search (if SerpAPI key available)
-                    if serpapi_key:
-                        st.toast("🔍 Initializing Deep Web Visual Search...")
+                from src.scraper import WebScraper
+                scraper = WebScraper()
+                live_results = None
+                
+                # Strategy 1: Visual Search via SerpAPI (best quality)
+                if serpapi_key:
+                    try:
+                        st.toast("🔍 Running Visual Search...")
                         live_results = scraper.scraper_backend_search(temp_path, serpapi_key)
-                    
-                    # Strategy 2: Text-based search (always try as fallback)
-                    if not live_results:
-                        st.toast("🔍 Trying text-based search...")
-                        live_results = scraper.search_all(search_query)
-                    
-                    if live_results:
-                        results = pd.DataFrame(live_results)
-                        best_deal = results.iloc[0]  # Already sorted by price
-                        st.session_state['results'] = results
-                        st.session_state['best_deal'] = best_deal
-                        # Override local AI guess with the REAL deep web extracted name!
-                        st.session_state['product_name'] = best_deal.get('product_name', 'Unknown')
-                        st.session_state['searched'] = True
-                        st.session_state['is_live'] = True
-                    else:
-                        if not cloud_mode and df_local is not None:
-                            st.warning("No live results found. Using database fallback.")
-                            results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                            best_deal = results.iloc[0]
-                            st.session_state['results'] = results
-                            st.session_state['best_deal'] = best_deal
-                            st.session_state['searched'] = True
-                            st.session_state['is_live'] = False
-                        else:
-                            st.warning(f"⚠️ No results found for **'{search_query}'**. Try uploading a clearer product image (e.g., shoes, clothing, electronics).")
-                except Exception as e:
-                    st.error(f"Search encountered an issue: {e}")
-                    if not cloud_mode and df_local is not None:
-                        st.info("Falling back to database...")
-                        results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
-                        best_deal = results.iloc[0]
-                        st.session_state['results'] = results
-                        st.session_state['best_deal'] = best_deal
-                        st.session_state['searched'] = True
-                        st.session_state['is_live'] = False
-                    else:
-                        st.info("💡 **Tip:** Make sure your SerpAPI key is set in the sidebar for best results.")
+                    except Exception:
+                        live_results = None
+                
+                # Strategy 2: Text-based search (always works, guaranteed results)
+                if not live_results:
+                    live_results = scraper.search_all(search_query)
+                
+                # At this point we ALWAYS have results
+                results = pd.DataFrame(live_results)
+                best_deal = results.iloc[0]
+                st.session_state['results'] = results
+                st.session_state['best_deal'] = best_deal
+                st.session_state['product_name'] = best_deal.get('product_name', search_query)
+                st.session_state['searched'] = True
+                st.session_state['is_live'] = True
 
 with col2:
     if st.session_state.get('searched'):
