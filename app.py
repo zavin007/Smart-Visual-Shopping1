@@ -227,7 +227,7 @@ st.markdown("""
 <style>
     .main-title {
         color: #FFFFFF !important;
-        font-size: 4.5rem !important;
+        font-size: 3.5rem !important;
         font-weight: 900 !important;
         letter-spacing: -2px !important;
         line-height: 1.1 !important;
@@ -388,6 +388,15 @@ with col1:
                 # 1. Extract feature for visual matching
                 query_feat = fe.extract(image)
                 
+                # --- IMAGE QUALITY VALIDATION ---
+                import numpy as np
+                gray = np.array(image.convert("L"), dtype=float)
+                # Laplacian variance = measure of sharpness. Low value = blurry.
+                laplacian_score = np.var(np.gradient(np.gradient(gray)))
+                if laplacian_score < 80:
+                    st.error("📷 Your image looks **blurry or unclear**. Please upload a sharper, well-lit photo of the product for best results.")
+                    st.stop()
+                
                 # 2. Find closest match in DB (for showing similar product)
                 if not cloud_mode:
                     product_id, match_img_path, dist = rec.find_similar(query_feat)
@@ -401,6 +410,22 @@ with col1:
                 product_category = analysis['category'] or search_query
                 confidence = analysis['confidence']
                 detected_brands = analysis.get('brands', [])
+                caption = analysis.get('caption', '') or ''
+                
+                # --- NON-PRODUCT VALIDATION ---
+                # If BLIP identifies something that is clearly NOT a product, warn the user.
+                non_product_keywords = [
+                    'a group of people', 'a man', 'a woman', 'a person', 'a crowd',
+                    'a room', 'a building', 'a house', 'a street', 'a road', 'a city',
+                    'a field', 'a tree', 'a mountain', 'a sky', 'a dog', 'a cat',
+                    'a bird', 'a car', 'a vehicle', 'a landscape', 'nature'
+                ]
+                caption_lower = caption.lower()
+                is_non_product = any(kw in caption_lower for kw in non_product_keywords)
+                if is_non_product and not detected_brands:
+                    st.warning(f"🖼️ This doesn't look like a product image (AI sees: *\"{caption}\"*). Please upload a **clear photo of a product** like clothing, shoes, accessories, or electronics.")
+                    st.stop()
+
                 
                 # Show what AI detected
                 if detected_brands:
