@@ -413,10 +413,16 @@ with col1:
                 try:
                     from src.scraper import WebScraper
                     scraper = WebScraper()
+                    live_results = None
+                    
+                    # Strategy 1: Visual Search (if SerpAPI key available)
                     if serpapi_key:
                         st.toast("🔍 Initializing Deep Web Visual Search...")
                         live_results = scraper.scraper_backend_search(temp_path, serpapi_key)
-                    else:
+                    
+                    # Strategy 2: Text-based search (always try as fallback)
+                    if not live_results:
+                        st.toast("🔍 Trying text-based search...")
                         live_results = scraper.search_all(search_query)
                     
                     if live_results:
@@ -424,12 +430,12 @@ with col1:
                         best_deal = results.iloc[0]  # Already sorted by price
                         st.session_state['results'] = results
                         st.session_state['best_deal'] = best_deal
-                        # Override local AI guess (like "Perfume") with the REAL deep web extracted name!
+                        # Override local AI guess with the REAL deep web extracted name!
                         st.session_state['product_name'] = best_deal.get('product_name', 'Unknown')
                         st.session_state['searched'] = True
                         st.session_state['is_live'] = True
                     else:
-                        if not cloud_mode:
+                        if not cloud_mode and df_local is not None:
                             st.warning("No live results found. Using database fallback.")
                             results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
                             best_deal = results.iloc[0]
@@ -438,10 +444,10 @@ with col1:
                             st.session_state['searched'] = True
                             st.session_state['is_live'] = False
                         else:
-                            st.error("No live results found and local database is unavailable in Cloud Mode.")
+                            st.warning(f"⚠️ No results found for **'{search_query}'**. Try uploading a clearer product image (e.g., shoes, clothing, electronics).")
                 except Exception as e:
-                    st.error(f"Live search failed: {e}")
-                    if not cloud_mode:
+                    st.error(f"Search encountered an issue: {e}")
+                    if not cloud_mode and df_local is not None:
                         st.info("Falling back to database...")
                         results = df_local[df_local['product_id'] == product_id].sort_values(by='price')
                         best_deal = results.iloc[0]
@@ -450,7 +456,7 @@ with col1:
                         st.session_state['searched'] = True
                         st.session_state['is_live'] = False
                     else:
-                        st.warning("Database fallback is unavailable in Cloud Mode.")
+                        st.info("💡 **Tip:** Make sure your SerpAPI key is set in the sidebar for best results.")
 
 with col2:
     if st.session_state.get('searched'):
