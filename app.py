@@ -469,46 +469,24 @@ with col1:
                 confidence = analysis['confidence']
                 detected_brands = analysis.get('brands', [])
                 caption = analysis.get('caption', '') or ''
+                caption_lower = caption.lower()
                 
-                # --- SMART PRODUCT VALIDATION ---
-                # Allow images even if they contain people (fashion shots) if:
-                # 1. Product keywords are detected in caption
-                # 2. Local classifier is very confident
-                # 3. Brands are detected via OCR
+                # --- GOOGLE LENS PHILOSOPHY ---
+                # We no longer block searches. Like Google Lens, we search first and show the best results.
+                # We only show info if the AI detects something specific.
                 
-                fashion_keywords = ['shirt', 'shoes', 'watch', 'jeans', 'tshirt', 'sneakers', 'dress', 'backpack', 'handbag', 'glasses', 'apparel', 'clothing']
-                found_fashion_kw = any(kw in caption_lower for kw in fashion_keywords)
-                
-                non_product_keywords = [
-                    'a crowd', 'a room', 'a building', 'a house', 'a street', 'a road', 'a city',
-                    'a field', 'a tree', 'a mountain', 'a sky', 'a dog', 'a cat',
-                    'a bird', 'a car', 'a vehicle', 'a landscape', 'nature'
-                ]
-                is_scenery = any(kw in caption_lower for kw in non_product_keywords)
-                
-                # Logic: Block only if it looks like scenery/non-product AND we have no strong fashion signals
-                if is_scenery and not (found_fashion_kw or detected_brands or confidence > 0.45):
-                    st.warning(f"🖼️ This doesn't look like a product image (AI sees: *\"{caption}\"*). Please upload a **clear photo of a product**.")
-                    st.stop()
-                
-                # Special Case: If it's just "a man" or "a person" without any fashion keywords or brand detection
-                elif ('a man' in caption_lower or 'a person' in caption_lower or 'a woman' in caption_lower) and not (found_fashion_kw or detected_brands or confidence > 0.40):
-                     st.warning(f"🖼️ This looks like a person without a clear product focus (AI sees: *\"{caption}\"*). For best results, zoom in on the apparel or accessory.")
-                     st.stop()
-
-                
-                # Show what AI detected
                 if detected_brands:
                     st.success(f"🏷️ Brand detected: **{', '.join(detected_brands)}**")
-                if analysis['caption']:
-                    st.info(f"🤖 AI sees: *{analysis['caption']}*")
+                
+                # Show AI insight as a subtle toast if it's a person/scenery, but DON'T block
+                if ('a man' in caption_lower or 'a person' in caption_lower or 'a woman' in caption_lower):
+                    st.toast("👕 Focusing on apparel detections...")
                 
                 st.session_state['match_img'] = match_img_path
                 st.session_state['product_name'] = product_category
                 st.session_state['confidence'] = confidence
                 st.session_state['search_query'] = search_query
                 
-            
             # 4. Search using AI-detected product description or Google Lens
             temp_path = "temp_query.jpg"
             image.convert("RGB").save(temp_path, "JPEG")
