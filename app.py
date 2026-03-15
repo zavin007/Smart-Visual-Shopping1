@@ -65,51 +65,30 @@ if dark_mode:
             font-family: 'Inter', sans-serif;
         }
         
-        /* Stylize Headers with Gradient and Premium Font */
-        h1, h2, h3 {
+        /* stylize headers with maximum contrast */
+        h1, h2, h3, h4, h5, h6 {
             font-family: 'Outfit', sans-serif !important;
-        }
-        
-        /* Keep main H1 simple */
-        h1 {
             color: #ffffff !important;
             font-weight: 800 !important;
-            letter-spacing: -1px;
         }
         
-        /* Make smaller text eye-catching */
-        p, .stMarkdown p {
-            color: rgba(255, 255, 255, 0.9) !important;
-            font-size: 1.1rem !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Make subheadings white */
-        h2, h3, h4, h5, h6 {
+        /* Make body text extremely readable */
+        p, .stMarkdown p, span, label {
             color: #ffffff !important;
-            font-weight: 700 !important;
+            font-size: 1.15rem !important;
+            font-weight: 600 !important;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
         }
         
-        /* Glassmorphism Containers - Invisible Boundaries */
-        [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
-            background: rgba(20, 20, 20, 0.2);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            border-radius: 16px;
-            border: none !important;
-            padding: 20px;
-            box-shadow: none !important;
-        }
-        
-        /* Premium Buttons */
+        /* Premium Buttons - Bold text */
         .stButton>button {
             background: linear-gradient(45deg, #FF512F 0%, #DD2476 100%);
-            color: white;
+            color: white !important;
             border: none;
             border-radius: 30px;
             padding: 12px 30px;
-            font-size: 16px;
-            font-weight: 600;
+            font-size: 18px;
+            font-weight: 800;
             transition: all 0.3s ease;
             box-shadow: 0 4px 15px rgba(221, 36, 118, 0.4);
         }
@@ -193,50 +172,40 @@ else:
             font-family: 'Inter', sans-serif;
         }
         
-        /* Stylize Headers with Gradient and Premium Font */
-        h1, h2, h3 {
+        /* Stylize Headers for Light Mode - Extreme Dark */
+        h1, h2, h3, h4, h5, h6 {
             font-family: 'Outfit', sans-serif !important;
-        }
-        
-        /* Keep main H1 simple and dark */
-        h1 {
-            color: #1a1a1a !important;
+            color: #000000 !important;
             font-weight: 800 !important;
-            letter-spacing: -1px;
         }
         
-        /* Make smaller text eye-catching */
-        p, .stMarkdown p {
-            color: #4a5568 !important;
-            font-size: 1.1rem !important;
-            font-weight: 500 !important;
-        }
-        
-        /* Make subheadings dark */
-        h2, h3, h4, h5, h6 {
-            color: #2d3748 !important;
+        /* Black, heavy text for light mode */
+        p, .stMarkdown p, span, label {
+            color: #000000 !important;
+            font-size: 1.15rem !important;
             font-weight: 700 !important;
         }
-        /* Glassmorphism Containers - Invisible Boundaries */
+        
+        /* Glassmorphism Containers */
         [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
-            background: rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-radius: 16px;
-            border: none !important;
+            border: 1px solid rgba(0,0,0,0.1);
             padding: 20px;
-            box-shadow: none !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1) !important;
         }
         
         /* Premium Buttons */
         .stButton>button {
             background: linear-gradient(45deg, #1fa2ff 0%, #12d8fa 50%, #a6ffcb 100%);
-            color: #004d40;
+            color: #000000 !important;
             border: none;
             border-radius: 30px;
             padding: 12px 30px;
-            font-size: 16px;
-            font-weight: 700;
+            font-size: 18px;
+            font-weight: 800;
             box-shadow: 0 4px 15px rgba(18, 216, 250, 0.3);
             transition: all 0.3s ease;
         }
