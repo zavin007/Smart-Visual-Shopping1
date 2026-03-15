@@ -226,6 +226,7 @@ else:
 st.markdown("""
 <style>
     .main-title {
+        color: #FFFFFF !important;
         font-size: 4.5rem !important;
         font-weight: 900 !important;
         letter-spacing: -2px !important;
@@ -440,7 +441,6 @@ with col1:
                 
                 # Strategy 2: Absolute Fallback (Title-based simulated)
                 if not live_results:
-                    st.toast("⚠️ No live visual matches. Falling back to title search...")
                     live_results = scraper.search_all(search_query)
                 
                 # At this point we ALWAYS have results
