@@ -38,115 +38,84 @@ class WebScraper:
 
     def scraper_backend_search(self, image_path, api_key):
         """
-        True Reverse Image Search using Deep Web search engine.
-        Mimics the native Google Lens experience by returning high-volume raw visual matches.
+        2-Stage Real-Time Search:
+        1. Google Lens: Identify the EXACT product name/model.
+        2. Google Shopping: Fetch LIVE prices from Amazon, Flipkart, Myntra, etc. (India location).
         """
         results = []
         try:
-            # 1. Upload image to get public URL
-            print(f"[INFO] Uploading image for Deep Web analysis...")
+            # Stage 1: Identification via Google Lens
+            print(f"[INFO] Identifying product via Google Lens...")
             public_url = self._upload_temp_image(image_path)
-            
             if not public_url:
-                raise Exception("Failed to get public image URL")
+                raise Exception("Image host (Catbox) is temporarily unavailable.")
                 
-            print(f"[INFO] Sending to Deep Web Search API (Native Lens Mode)...")
-            
-            # 2. Call SerpApi Google Lens
-            params = {
+            lens_params = {
                 "engine": "google_lens",
                 "url": public_url,
-                "api_key": api_key,
-                "gl": "in",
-                "hl": "en"
+                "api_key": api_key
             }
+            lens_resp = requests.get("https://serpapi.com/search", params=lens_params, timeout=30)
+            lens_data = lens_resp.json()
             
-            response = requests.get("https://serpapi.com/search", params=params, timeout=30)
-            data = response.json()
-            
-            # 3. Two-Step Pipeline: Get visual match title, then search local Google Shopping
+            # Extract the most accurate title
             search_query = "Product"
-            if "knowledge_graph" in data and len(data["knowledge_graph"]) > 0:
-                search_query = data["knowledge_graph"][0].get("title", "Product")
-            elif "visual_matches" in data and len(data["visual_matches"]) > 0:
-                search_query = data["visual_matches"][0].get("title", "Product")
-                
-            print(f"[INFO] Image identified as '{search_query}'. Fetching true Indian prices...")
+            if "knowledge_graph" in lens_data and len(lens_data["knowledge_graph"]) > 0:
+                search_query = lens_data["knowledge_graph"][0].get("title", "Product")
+            elif "visual_matches" in lens_data and len(lens_data["visual_matches"]) > 0:
+                search_query = lens_data["visual_matches"][0].get("title", "Product")
             
-            trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'snapdeal']
+            print(f"[INFO] Product identified as: '{search_query}'")
             
-            # Pass 1: Extract the absolute top visual match to guarantee EXACT image similarity,
-            # even if it's not from a trusted Indian vendor! Ensures they see the true product.
-            if "visual_matches" in data and len(data["visual_matches"]) > 0:
-                top_match = data["visual_matches"][0]
-                vendor_raw = top_match.get("source", "Official Store")
-                price_val = 0
-                if "price" in top_match:
-                    currency = top_match["price"].get("currency", "")
+            # Stage 2: Real-time Price Fetching via Google Shopping (India)
+            print(f"[INFO] Fetching LIVE Indian prices for '{search_query}'...")
+            shopping_params = {
+                "engine": "google_shopping",
+                "q": search_query,
+                "location": "India",
+                "gl": "in",
+                "hl": "en",
+                "api_key": api_key
+            }
+            shop_resp = requests.get("https://serpapi.com/search", params=shopping_params, timeout=30)
+            shop_data = shop_resp.json()
+            
+            if "shopping_results" in shop_data:
+                for item in shop_data["shopping_results"][:10]:
+                    vendor_raw = item.get("source", "Store")
+                    price_str = item.get("price", "₹0")
+                    # Clean price string (e.g., "₹1,299.00" -> 1299)
                     try:
-                        p_str = top_match["price"].get("extracted_value", 0)
-                        p = float(p_str)
-                        if currency == "$" or p < 200: p = p * 84.0 
-                        price_val = int(p)
-                    except: pass
-                if price_val == 0:
-                    import random
-                    price_val = random.randint(499, 2499)
-                results.append({
-                    'vendor': vendor_raw + " ⭐ (Exact Match)",
-                    'product_name': top_match.get("title", search_query)[:50] + "...",
-                    'price': price_val,
-                    'url': top_match.get("link", ""),
-                    'thumbnail': top_match.get("thumbnail", "")
-                })
-
-            # Pass 2: Extract visually similar items from the STRICT Indian Vendor Whitelist
-            if "visual_matches" in data and len(data["visual_matches"]) > 1:
-                for match in data["visual_matches"][1:]:
-                    if len(results) >= 15: break
-                    vendor_raw = match.get("source", "Web Store")
-                    vendor_lower = vendor_raw.lower()
-                    
-                    is_trusted = False
-                    for trusted in trusted_vendors:
-                        if trusted in vendor_lower:
-                            is_trusted = True
-                            vendor_raw = trusted.capitalize()
-                            break
-                            
-                    if not is_trusted:
-                        continue
+                        extracted_price = int(''.join(filter(str.isdigit, price_str.split('.')[0])))
+                    except:
+                        extracted_price = 0
                         
-                    price_val = 0
-                    if "price" in match:
-                        currency = match["price"].get("currency", "")
-                        try:
-                            p_str = match["price"].get("extracted_value", 0)
-                            p = float(p_str)
-                            if currency == "$" or p < 200: p = p * 84.0 
-                            price_val = int(p)
-                        except: pass
-                    if price_val == 0:
-                        import random
-                        price_val = random.randint(499, 2499)
-                        
-                    url = match.get("link", "")
-                    if any(r['url'] == url for r in results):
-                        continue
-                            
                     results.append({
                         'vendor': vendor_raw,
-                        'product_name': match.get("title", 'Visually Similar').replace('\u2b50', '*')[:50] + "...",
-                        'price': price_val,
-                        'url': url,
-                        'thumbnail': match.get("thumbnail", "")
+                        'product_name': item.get("title", search_query)[:60] + "...",
+                        'price': extracted_price,
+                        'url': item.get("link", ""),
+                        'thumbnail': item.get("thumbnail", "")
                     })
             
+            # Fallback: If no shopping results, try visual matches from Stage 1
+            if not results and "visual_matches" in lens_data:
+                print(f"[INFO] No direct shopping results. Using top visual matches...")
+                for match in lens_data["visual_matches"][:5]:
+                    results.append({
+                        'vendor': match.get("source", "Web Store"),
+                        'product_name': match.get("title", search_query)[:60] + "...",
+                        'price': 0, # Mark as 0 if unknown
+                        'url': match.get("link", ""),
+                        'thumbnail': match.get("thumbnail", "")
+                    })
+
             if results:
-                print(f"[OK] Found {len(results)} matches!")
-                results.sort(key=lambda x: x['price'])
+                print(f"[OK] Found {len(results)} verifiable results!")
+                # Remove results with 0 price if possible, or sort them last
+                results.sort(key=lambda x: (x['price'] == 0, x['price']))
         except Exception as e:
-            print(f"[ERROR] API failure: {e}")
+            print(f"[ERROR] Live search failed: {e}")
             
         return results
 

@@ -314,6 +314,9 @@ def add_to_database(image, search_query):
         filename = f"{clean_name}_{timestamp}.jpg"
         save_path = os.path.join("data", "images", filename)
         
+        # Ensure directory exists
+        os.makedirs(os.path.join("data", "images"), exist_ok=True)
+        
         # Save image
         if image.mode != 'RGB':
             image = image.convert('RGB')
