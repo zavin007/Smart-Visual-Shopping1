@@ -457,8 +457,6 @@ with col1:
                 if laplacian_score < 5:
                     st.error("📷 Your image is extremely blurry. Please upload a sharper photo.")
                     st.stop()
-                elif laplacian_score < 20:
-                    st.warning("⚠️ Note: The image looks a bit soft. Results might be more accurate with a sharper photo.")
                 
                 # 2. Find closest match in DB (for showing similar product)
                 if not cloud_mode:
@@ -621,96 +619,96 @@ with col2:
 
     st.markdown('</div>', unsafe_allow_html=True)
 
-        # Smooth Non-Blinking Carousel using HTML/CSS
-        carousel_html = """
-        <style>
-            .carousel-container {
-                width: 100%;
-                height: 380px;
-                position: relative;
-                overflow: hidden;
-                border-radius: 20px;
-                background: rgba(255,255,255,0.05);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                font-family: 'Inter', sans-serif;
-            }
-            .slide {
-                position: absolute;
-                top: 0; left: 0; width: 100%; height: 100%;
-                opacity: 0;
-                transition: opacity 1s ease-in-out;
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                padding: 20px;
-                box-sizing: border-box;
-                text-align: center;
-            }
-            .slide.active { opacity: 1; }
-            .slide img {
-                width: 200px;
-                height: 200px;
-                object-fit: cover;
-                border-radius: 15px;
-                box-shadow: 0 10px 20px rgba(0,0,0,0.3);
-                margin-bottom: 15px;
-            }
-            .product-name { color: #fff; font-size: 1.2rem; font-weight: 700; margin: 5px 0; }
-            .product-price { color: #00ff88; font-size: 1.1rem; font-weight: 600; }
-            .vendor-tag { background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; color: #ddd; margin-top: 10px; }
-            .scan-line {
-                position: absolute;
-                top: 0; left: 0; width: 100%; height: 2px;
-                background: rgba(0, 255, 136, 0.5);
-                box-shadow: 0 0 15px #00ff88;
-                animation: scan 3s linear infinite;
-            }
-            @keyframes scan {
-                0% { top: 10%; }
-                50% { top: 70%; }
-                100% { top: 10%; }
-            }
-        </style>
-        <div class="carousel-container">
-            <div class="scan-line"></div>
-            <div class="slide active">
-                <img src="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=400&auto=format&fit=crop">
-                <div class="product-name">Zara Men's Slim Fit Shirt</div>
-                <div class="product-price">₹2,990 <span style="font-size:0.8rem; color:#888;">Live Price Check</span></div>
-                <div class="vendor-tag">Found on: Myntra ⭐</div>
-            </div>
-            <div class="slide">
-                <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=400&auto=format&fit=crop">
-                <div class="product-name">Nike Air Max 270</div>
-                <div class="product-price">₹10,490 <span style="font-size:0.8rem; color:#888;">15% Discount Appled</span></div>
-                <div class="vendor-tag">Found on: Amazon India 🚚</div>
-            </div>
-            <div class="slide">
-                <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop">
-                <div class="product-name">H&M Summer Floral Dress</div>
-                <div class="product-price">₹1,499</div>
-                <div class="vendor-tag">Found on: Ajio 🏷️</div>
-            </div>
-            <div class="slide">
-                <img src="https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?q=80&w=400&auto=format&fit=crop">
-                <div class="product-name">Adidas Stan Smith sneakers</div>
-                <div class="product-price">₹7,999</div>
-                <div class="vendor-tag">Found on: Flipkart 📦</div>
-            </div>
-        </div>
-        <script>
-            let slides = document.querySelectorAll('.slide');
-            let currentSlide = 0;
-            function nextSlide() {
-                slides[currentSlide].classList.remove('active');
-                currentSlide = (currentSlide + 1) % slides.length;
-                slides[currentSlide].classList.add('active');
-            }
-            setInterval(nextSlide, 3500); // Change every 3.5 seconds
-        </script>
-        """
-        import streamlit.components.v1 as components
-        components.html(carousel_html, height=390)
+# Smooth Non-Blinking Carousel using HTML/CSS
+carousel_html = """
+<style>
+    .carousel-container {
+        width: 100%;
+        height: 380px;
+        position: relative;
+        overflow: hidden;
+        border-radius: 20px;
+        background: rgba(255,255,255,0.05);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-family: 'Inter', sans-serif;
+    }
+    .slide {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        opacity: 0;
+        transition: opacity 1s ease-in-out;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        box-sizing: border-box;
+        text-align: center;
+    }
+    .slide.active { opacity: 1; }
+    .slide img {
+        width: 200px;
+        height: 200px;
+        object-fit: cover;
+        border-radius: 15px;
+        box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+        margin-bottom: 15px;
+    }
+    .product-name { color: #fff; font-size: 1.2rem; font-weight: 700; margin: 5px 0; }
+    .product-price { color: #00ff88; font-size: 1.1rem; font-weight: 600; }
+    .vendor-tag { background: rgba(255,255,255,0.1); padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; color: #ddd; margin-top: 10px; }
+    .scan-line {
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 2px;
+        background: rgba(0, 255, 136, 0.5);
+        box-shadow: 0 0 15px #00ff88;
+        animation: scan 3s linear infinite;
+    }
+    @keyframes scan {
+        0% { top: 10%; }
+        50% { top: 70%; }
+        100% { top: 10%; }
+    }
+</style>
+<div class="carousel-container">
+    <div class="scan-line"></div>
+    <div class="slide active">
+        <img src="https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=400&auto=format&fit=crop">
+        <div class="product-name">Zara Men's Slim Fit Shirt</div>
+        <div class="product-price">₹2,990 <span style="font-size:0.8rem; color:#888;">Live Price Check</span></div>
+        <div class="vendor-tag">Found on: Myntra ⭐</div>
+    </div>
+    <div class="slide">
+        <img src="https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=400&auto=format&fit=crop">
+        <div class="product-name">Nike Air Max 270</div>
+        <div class="product-price">₹10,490 <span style="font-size:0.8rem; color:#888;">15% Discount Appled</span></div>
+        <div class="vendor-tag">Found on: Amazon India 🚚</div>
+    </div>
+    <div class="slide">
+        <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=400&auto=format&fit=crop">
+        <div class="product-name">H&M Summer Floral Dress</div>
+        <div class="product-price">₹1,499</div>
+        <div class="vendor-tag">Found on: Ajio 🏷️</div>
+    </div>
+    <div class="slide">
+        <img src="https://images.unsplash.com/photo-1600185365483-26d7a4cc7519?q=80&w=400&auto=format&fit=crop">
+        <div class="product-name">Adidas Stan Smith sneakers</div>
+        <div class="product-price">₹7,999</div>
+        <div class="vendor-tag">Found on: Flipkart 📦</div>
+    </div>
+</div>
+<script>
+    let slides = document.querySelectorAll('.slide');
+    let currentSlide = 0;
+    function nextSlide() {
+        slides[currentSlide].classList.remove('active');
+        currentSlide = (currentSlide + 1) % slides.length;
+        slides[currentSlide].classList.add('active');
+    }
+    setInterval(nextSlide, 3500); // Change every 3.5 seconds
+</script>
+"""
+import streamlit.components.v1 as components
+components.html(carousel_html, height=390)
