@@ -30,12 +30,7 @@ with st.sidebar:
     dark_mode = st.toggle("🌙 Dark Mode", value=False)
         
     # Secure API Key Management
-    try:
-        # Tries to get the key from Streamlit Secrets (for cloud deployment)
-        serpapi_key = st.secrets["SERPAPI_KEY"]
-    except Exception:
-        # Fallback for local development if secrets.toml isn't set up
-        serpapi_key = "b812872ae05ca9ba5e74409cc5a8351716e3e3e627ca9a6534e43b7e8b5010a2"
+    serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
     
 # Always apply WebGL Background
 inject_shader_background()
