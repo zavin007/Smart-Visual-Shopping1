@@ -429,26 +429,19 @@ with col1:
                 scraper = WebScraper()
                 live_results = None
                 
-                # Strategy 1: Visual Search via SerpAPI (best quality)
+                # Strategy 1: Visual-First Search (via Scraper Engine)
                 if serpapi_key:
                     try:
                         st.toast("🔍 Running Visual Search...")
                         live_results = scraper.scraper_backend_search(temp_path, serpapi_key)
-                    except Exception:
+                    except Exception as e:
+                        print(f"Scraper error: {e}")
                         live_results = None
                 
-                # Strategy 2: ALWAYS add results from major Indian vendors
-                text_results = scraper.search_all(search_query)
-                
-                # Merge: Visual matches first, then fill with vendor results
-                if live_results:
-                    # Get vendor names already in visual results
-                    existing_vendors = {r['vendor'].lower() for r in live_results}
-                    for tr in text_results:
-                        if tr['vendor'].lower() not in existing_vendors:
-                            live_results.append(tr)
-                else:
-                    live_results = text_results
+                # Strategy 2: Absolute Fallback (Title-based simulated)
+                if not live_results:
+                    st.toast("⚠️ No live visual matches. Falling back to title search...")
+                    live_results = scraper.search_all(search_query)
                 
                 # At this point we ALWAYS have results
                 results = pd.DataFrame(live_results)
