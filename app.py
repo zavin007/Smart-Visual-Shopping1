@@ -432,6 +432,18 @@ with col1:
         st.image(image, caption='Query Image', use_container_width=True)
         
         if st.button('🔍 Find Best Price', type="primary"):
+            # --- RATE LIMITING ---
+            import time as time_module
+            current_time = time_module.time()
+            last_search_time = st.session_state.get('last_search_time', 0)
+            
+            if current_time - last_search_time < 5:  # 5 second limit
+                wait_time = int(5 - (current_time - last_search_time))
+                st.warning(f"⏳ Please wait {wait_time} seconds before searching again to protect API limits.")
+                st.stop()
+            
+            st.session_state['last_search_time'] = current_time
+            
             with st.spinner('🧠 AI is analyzing your product...'):
                 # 1. Extract feature for visual matching
                 query_feat = fe.extract(image)
