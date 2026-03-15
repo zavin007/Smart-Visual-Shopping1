@@ -124,18 +124,20 @@ class WebScraper:
                         except: pass
                     
                     # Final fallback: if vendor is trusted but price is still 0, 
-                    # try extracting from snippet or just assign a dummy value 
-                    # to keep the Visual Match alive (better than generic search)
+                    # use the internal estimator based on the product category (search_query)
+                    # This keeps the EXACT visual match alive while providing a realistic price for the demo.
                     if price_val <= 0:
                         import re
-                        snippet = match.get("title", "") + " " + vendor_raw
+                        # Try regex one last time on title
+                        snippet = match.get("title", "")
                         nums = re.findall(r'₹\s?(\d+[,.]?\d*)', snippet)
                         if nums:
                             try: price_val = int(nums[0].replace(',', ''))
                             except: pass
-                    
-                    # If still 0, we still keep it if it's a direct visual hit
-                    # We'll just show it at the bottom of the list
+                        
+                        # If STILL 0, estimate it based on the category
+                        if price_val <= 0:
+                            price_val = self._estimate_price(0, vendor_raw, search_query)
                     
                     results.append({
                         'vendor': vendor_raw,
@@ -208,8 +210,27 @@ class WebScraper:
             formatted_query = urllib.parse.quote_plus(query)
             return f"{base_url}{formatted_query}"
     
-    def _estimate_price(self, base_price, platform):
-        # ... existing generic price estimator
+    def _get_base_price(self, query):
+        """Estimate a realistic base price based on item category."""
+        q = query.lower()
+        if any(x in q for x in ['coffee', 'maker', 'espresso', 'grinder']):
+            return random.randint(2500, 7000)
+        elif any(x in q for x in ['nike', 'adidas', 'puma', 'shoe', 'sneaker']):
+            return random.randint(1800, 4500)
+        elif 'watch' in q:
+            return random.randint(1200, 5000)
+        elif 'kurta' in q or 'shirt' in q:
+            return random.randint(600, 1800)
+        elif 'bag' in q or 'backpack' in q:
+            return random.randint(900, 3000)
+        elif 'belt' in q or 'wallet' in q:
+            return random.randint(400, 1200)
+        return random.randint(500, 2000)
+
+    def _estimate_price(self, base_price, platform, query="Product"):
+        if base_price <= 0:
+            base_price = self._get_base_price(query)
+            
         variance = {
             'Amazon': (-150, 200),
             'Flipkart': (-200, 150),
@@ -220,7 +241,7 @@ class WebScraper:
         
         low, high = variance.get(platform, (-100, 100))
         price = base_price + random.randint(low, high)
-        return max(299, price)
+        return max(399, price)
     
     def search_all(self, query):
         """
@@ -230,19 +251,10 @@ class WebScraper:
         search_query = query.strip()
         query_lower = query.lower()
         
-        if 'nike' in query_lower or 'adidas' in query_lower or 'puma' in query_lower:
-            base_price = random.randint(2500, 5000)
-        elif 'shoe' in query_lower or 'sneaker' in query_lower:
-            base_price = random.randint(1500, 3500)
-        elif 'watch' in query_lower:
-            base_price = random.randint(1000, 4000)
-        elif 'bag' in query_lower or 'backpack' in query_lower:
-            base_price = random.randint(800, 2500)
-        else:
-            base_price = random.randint(500, 2000)
+        base_price = self._get_base_price(search_query)
         
         for platform in self.platforms.keys():
-            price = self._estimate_price(base_price, platform)
+            price = self._estimate_price(base_price, platform, search_query)
             url = self._generate_url(platform, search_query)
             
             results.append({
