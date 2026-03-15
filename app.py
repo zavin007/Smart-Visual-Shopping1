@@ -30,7 +30,10 @@ with st.sidebar:
     dark_mode = st.toggle("🌙 Dark Mode", value=False)
         
     # Secure API Key Management
-    serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
+    try:
+        serpapi_key = st.secrets.get("SERPAPI_KEY", os.getenv("SERPAPI_KEY", ""))
+    except Exception:
+        serpapi_key = os.getenv("SERPAPI_KEY", "")
     
 # Always apply WebGL Background
 inject_shader_background()
