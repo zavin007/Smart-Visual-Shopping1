@@ -316,7 +316,6 @@ df_local = load_local_prices()
 cloud_mode = False
 if not rec or df_local is None:
     cloud_mode = True
-    st.info("☁️ **Cloud Search Mode Active**: Local database skipped to save memory. Online price detection is fully enabled!")
 
 # --- Online Learning: Add image to database ---
 import numpy as np
@@ -564,58 +563,23 @@ with col2:
     else:
         st.info("👈 Upload an image to start searching.")
         
-        st.markdown("### 🛍️ Live Price Discovery Showcase")
-        st.markdown("Watch how VisionCart finds the best deals across the internet in real-time.")
+        st.markdown("### 🛍️ Feature Showcase")
+        st.markdown("VisionCart finds the best deals across the internet in real-time using Visual AI.")
         
-        # Auto-playing mock carousel
-        import time as time_module
-        import math
-        
-        # Define 3 exciting demo products
+        # Static demo products (No rerun)
         demo_products = [
             {
                 "name": "Nike Air Max 270",
                 "image": "https://images.unsplash.com/photo-1542291026-7eec264c27ff?q=80&w=600&auto=format&fit=crop",
-                "prices": [("Amazon", 12999), ("Flipkart", 11499), ("Myntra", 13200)],
-                "desc": "Detecting features: Mesh upper, Air unit..."
             },
             {
                 "name": "Sony WH-1000XM5",
                 "image": "https://images.unsplash.com/photo-1618366712010-f4ae9c647dcb?q=80&w=600&auto=format&fit=crop",
-                "prices": [("Amazon", 29990), ("Croma", 32000), ("Reliance", 28500)],
-                "desc": "Analyzing shape: Over-ear, matte finish..."
-            },
-            {
-                "name": "Apple Watch Series 9",
-                "image": "https://images.unsplash.com/photo-1434493789847-2f02dc6ca35d?q=80&w=600&auto=format&fit=crop",
-                "prices": [("Amazon", 41900), ("Flipkart", 40500), ("Apple", 41900)],
-                "desc": "Identifying brand: Apple, aluminum case..."
             }
         ]
         
-        # Cycle through them based on current time
-        cycle_time = 4.0 # seconds per slide
-        current_idx = int(math.floor(time_module.time() / cycle_time)) % len(demo_products)
-        product = demo_products[current_idx]
-        
-        # Render the showcase card
-        with st.container():
-            st.markdown(f"#### 🔍 Live Scan: **{product['name']}**")
-            
-            c1, c2 = st.columns([1, 1.5])
-            with c1:
-                st.image(product['image'], use_container_width=True, caption=product['desc'])
-            
-            with c2:
-                # Find the lowest price
-                best_price = min([p[1] for p in product['prices']])
-                
-                for vendor, price in product['prices']:
-                    if price == best_price:
-                        st.success(f"🔥 **{vendor}**: ₹{price:,} (Best Deal!)")
-                    else:
-                        st.info(f"🏬 **{vendor}**: ₹{price:,}")
-                        
-        # Auto-rerun trick to make the carousel animate
-        time_module.sleep(1)
-        st.rerun()
+        c1, c2 = st.columns(2)
+        with c1:
+            st.image(demo_products[0]['image'], caption=demo_products[0]['name'])
+        with c2:
+            st.image(demo_products[1]['image'], caption=demo_products[1]['name'])
