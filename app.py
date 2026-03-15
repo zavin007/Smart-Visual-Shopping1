@@ -223,7 +223,19 @@ else:
     """, unsafe_allow_html=True)
 
 
-st.markdown('<h1 style="font-size: 4.5rem !important; font-weight: 900 !important; letter-spacing: -2px; line-height: 1.1; margin-bottom: 10px;">🛍️ Smart Visual Shopping & Price Discovery</h1>', unsafe_allow_html=True)
+st.markdown("""
+<style>
+    .main-title {
+        font-size: 4.5rem !important;
+        font-weight: 900 !important;
+        letter-spacing: -2px !important;
+        line-height: 1.1 !important;
+        margin-bottom: 10px !important;
+        font-family: 'Outfit', sans-serif !important;
+    }
+</style>
+<div class="main-title">🛍️ Smart Visual Shopping & Price Discovery</div>
+""", unsafe_allow_html=True)
 st.markdown("""
 <style>
     .white-text p {
@@ -422,16 +434,25 @@ with col1:
                     except Exception:
                         live_results = None
                 
-                # Strategy 2: Text-based search (always works, guaranteed results)
-                if not live_results:
-                    live_results = scraper.search_all(search_query)
+                # Strategy 2: ALWAYS add results from major Indian vendors
+                text_results = scraper.search_all(search_query)
+                
+                # Merge: Visual matches first, then fill with vendor results
+                if live_results:
+                    # Get vendor names already in visual results
+                    existing_vendors = {r['vendor'].lower() for r in live_results}
+                    for tr in text_results:
+                        if tr['vendor'].lower() not in existing_vendors:
+                            live_results.append(tr)
+                else:
+                    live_results = text_results
                 
                 # At this point we ALWAYS have results
                 results = pd.DataFrame(live_results)
                 best_deal = results.iloc[0]
                 st.session_state['results'] = results
                 st.session_state['best_deal'] = best_deal
-                st.session_state['product_name'] = best_deal.get('product_name', search_query)
+                st.session_state['product_name'] = search_query
                 st.session_state['searched'] = True
                 st.session_state['is_live'] = True
 
