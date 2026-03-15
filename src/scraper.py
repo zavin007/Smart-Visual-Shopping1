@@ -36,6 +36,19 @@ class WebScraper:
             print(f"[ERROR] Temp image upload failed: {e}")
             return None
 
+    def _to_indian_url(self, url, query=""):
+        """Convert global e-commerce URLs to Indian equivalents."""
+        if not url:
+            return url
+        # Amazon: .com -> .in
+        if 'amazon.com/' in url:
+            url = url.replace('amazon.com/', 'amazon.in/')
+        # If it's a global amazon link without country, redirect to amazon.in search
+        if 'amazon.' in url and '.in' not in url and 'amazon.in' not in url:
+            query_encoded = urllib.parse.quote_plus(query) if query else ""
+            return f"https://www.amazon.in/s?k={query_encoded}"
+        return url
+
     def scraper_backend_search(self, image_path, api_key):
         """
         Visual-First Search Strategy:
@@ -91,22 +104,34 @@ class WebScraper:
                             p_str = match["price"].get("extracted_value", 0)
                             currency = match["price"].get("currency", "₹")
                             p = float(p_str)
-                            if currency == "$" or p < 100: p = p * 83.0 # Basic currency convert
+                            if currency == "$" or currency == "USD":
+                                p = p * 83.0  # USD to INR
+                            elif currency == "£":
+                                p = p * 105.0  # GBP to INR
+                            elif p > 0 and p < 50:
+                                p = p * 83.0  # Likely USD if very low
                             price_val = int(p)
                         except: pass
+                    
+                    # Skip results with no price
+                    if price_val <= 0:
+                        continue
+                    
+                    # Convert URLs to Indian versions
+                    item_url = self._to_indian_url(match.get("link", ""), search_query)
                     
                     results.append({
                         'vendor': vendor_raw,
                         'product_name': match.get("title", search_query)[:60] + "...",
                         'price': price_val,
-                        'url': match.get("link", ""),
+                        'url': item_url,
                         'thumbnail': match.get("thumbnail", "")
                     })
                     if len(results) >= 8: break
 
-            print(f"[INFO] Lens found {len(results)} direct visual matches.")
+            print(f"[INFO] Lens found {len(results)} direct visual matches with prices.")
 
-            # Stage 2: Text Search Fallback (Only if Lens results are low)
+            # Stage 2: Google Shopping Fallback (if Lens results are low)
             if len(results) < 3:
                 print(f"[INFO] Low visual results. Triggering Google Shopping fallback for '{search_query}'...")
                 shopping_params = {
@@ -131,18 +156,25 @@ class WebScraper:
                         try:
                             extracted_price = int(''.join(filter(str.isdigit, price_str.split('.')[0])))
                         except: extracted_price = 0
+                        
+                        # Skip zero-price results
+                        if extracted_price <= 0:
+                            continue
+                        
+                        # Convert URLs to Indian versions
+                        item_url = self._to_indian_url(url, search_query)
                             
                         results.append({
                             'vendor': vendor_raw,
                             'product_name': item.get("title", search_query)[:60] + "...",
                             'price': extracted_price,
-                            'url': url,
+                            'url': item_url,
                             'thumbnail': item.get("thumbnail", "")
                         })
 
             if results:
-                # Remove duplicates and cleanup
-                results.sort(key=lambda x: (x['price'] == 0, x['price']))
+                # Remove duplicates and sort by price (lowest first)
+                results.sort(key=lambda x: x['price'])
         except Exception as e:
             print(f"[ERROR] Visual search failed: {e}")
             
