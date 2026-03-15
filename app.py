@@ -180,17 +180,15 @@ else:
             font-weight: 700 !important;
         }
         
-        /* Targeted Card Styling (Replaces shaky global selector) */
-        .st-card {
-            background: rgba(255, 255, 255, 0.4);
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+        /* Glassmorphism Containers */
+        [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
             border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.2);
+            border: 1px solid rgba(0,0,0,0.1);
             padding: 20px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-            transition: all 0.3s ease;
-            margin-bottom: 20px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1) !important;
         }
         
         /* Premium Buttons */
@@ -407,10 +405,9 @@ def add_to_database(image, search_query):
     return False, "Unknown error"
 
 # Main Layout
-col1, col2 = st.columns([1, 1], gap="large")
+col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.markdown('<div class="st-card">', unsafe_allow_html=True)
     st.markdown("### 📸 Capture or Upload")
     
     # Input Method Selection
@@ -531,10 +528,7 @@ with col1:
                 st.session_state['searched'] = True
                 st.session_state['is_live'] = True
 
-    st.markdown('</div>', unsafe_allow_html=True)
-
 with col2:
-    st.markdown('<div class="st-card">', unsafe_allow_html=True)
     if st.session_state.get('searched'):
         # Show live/database badge
         if st.session_state.get('is_live'):
@@ -616,8 +610,6 @@ with col2:
         
         st.markdown("### 🏷️ Featured Fashion & Live Deals")
         st.markdown("VisionCart finds the best prices across the web in real-time.")
-
-    st.markdown('</div>', unsafe_allow_html=True)
 
 # Smooth Non-Blinking Carousel using HTML/CSS
 carousel_html = """
