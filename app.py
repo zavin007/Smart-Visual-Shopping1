@@ -215,6 +215,60 @@ else:
             color: #155724 !important;
             border-radius: 12px;
         }
+        
+        /* === MOBILE RESPONSIVE FIXES === */
+        @media (max-width: 768px) {
+            /* Remove heavy glass cards on mobile */
+            [data-testid="stVerticalBlock"] > div:not(:has(style)):not(:has(iframe)) {
+                background: rgba(255, 255, 255, 0.15) !important;
+                backdrop-filter: blur(8px) !important;
+                -webkit-backdrop-filter: blur(8px) !important;
+                padding: 10px !important;
+                border: 1px solid rgba(255,255,255,0.15) !important;
+                box-shadow: none !important;
+            }
+            
+            /* Fix file uploader dark shadow on mobile */
+            [data-testid="stFileUploader"] {
+                background: rgba(255, 255, 255, 0.2) !important;
+                border: 2px dashed rgba(255,255,255,0.4) !important;
+                border-radius: 12px !important;
+                padding: 12px !important;
+            }
+            [data-testid="stFileUploader"] section {
+                background: rgba(255,255,255,0.15) !important;
+            }
+            [data-testid="stFileUploader"] label,
+            [data-testid="stFileUploader"] span,
+            [data-testid="stFileUploader"] p,
+            [data-testid="stFileUploader"] small {
+                color: #ffffff !important;
+            }
+            
+            /* Expand camera viewport on mobile */
+            [data-testid="stCameraInput"] video,
+            [data-testid="stCameraInput"] img,
+            [data-testid="stCameraInput"] canvas {
+                width: 100% !important;
+                max-width: 100% !important;
+                height: auto !important;
+                min-height: 300px !important;
+                object-fit: cover !important;
+                border-radius: 12px !important;
+            }
+            [data-testid="stCameraInput"] {
+                width: 100% !important;
+            }
+            [data-testid="stCameraInput"] > div {
+                width: 100% !important;
+            }
+            
+            /* Shrink title for mobile */
+            .main-title {
+                font-size: 2rem !important;
+                letter-spacing: -1px !important;
+            }
+        }
     </style>
     """, unsafe_allow_html=True)
 
