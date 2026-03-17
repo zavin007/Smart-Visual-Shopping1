@@ -126,23 +126,31 @@ class WebScraper:
                     # Final fallback: if vendor is trusted but price is still 0, 
                     # use the internal estimator based on the product category (search_query)
                     # This keeps the EXACT visual match alive while providing a realistic price for the demo.
+                    is_estimated = False
                     if price_val <= 0:
                         import re
-                        # Try regex one last time on title
-                        snippet = match.get("title", "")
-                        nums = re.findall(r'₹\s?(\d+[,.]?\d*)', snippet)
-                        if nums:
-                            try: price_val = int(nums[0].replace(',', ''))
-                            except: pass
+                        # Try regex one last time on title/snippet - handle more variants
+                        snippet = match.get("title", "") + " " + match.get("source", "")
+                        # Match ₹1,234, ₹ 1234, Rs. 1234, etc.
+                        price_patterns = [r'₹\s?(\d+[,.]?\d*)', r'Rs\.?\s?(\d+[,.]?\d*)']
+                        for pattern in price_patterns:
+                            nums = re.findall(pattern, snippet)
+                            if nums:
+                                try: 
+                                    price_val = int(nums[0].replace(',', '').split('.')[0])
+                                    break
+                                except: pass
                         
                         # If STILL 0, estimate it based on the category
                         if price_val <= 0:
                             price_val = self._estimate_price(0, vendor_raw, search_query)
+                            is_estimated = True
                     
                     results.append({
                         'vendor': vendor_raw,
                         'product_name': match.get("title", search_query)[:60] + "...",
                         'price': price_val,
+                        'is_estimated': is_estimated,
                         'url': item_url,
                         'thumbnail': match.get("thumbnail", "")
                     })
@@ -187,6 +195,7 @@ class WebScraper:
                             'vendor': vendor_raw,
                             'product_name': item.get("title", search_query)[:60] + "...",
                             'price': extracted_price,
+                            'is_estimated': False, # Shopping results usually have structured prices
                             'url': item_url,
                             'thumbnail': item.get("thumbnail", "")
                         })

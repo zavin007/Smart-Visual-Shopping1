@@ -581,7 +581,10 @@ with col2:
                         st.markdown(f"**{row['vendor']}**")
                 
                 with c2:
-                    st.markdown(f"**₹{row['price']}**")
+                    price_display = f"**₹{row['price']}**"
+                    if row.get('is_estimated'):
+                        price_display += " <span style='font-size:0.8rem; color:#888;'>(Est.)</span>"
+                    st.markdown(price_display, unsafe_allow_html=True)
                     
                 with c3:
                     url = row.get('url', '#')
@@ -594,6 +597,16 @@ with col2:
         savings = res_df.iloc[-1]['price'] - res_df.iloc[0]['price']
         if savings > 0:
             st.info(f"💡 You save **₹{savings}** by buying from {res_df.iloc[0]['vendor']}!")
+            
+        # Professional Disclaimer
+        st.markdown("""
+        <div style="background: rgba(255,255,255,0.05); padding: 15px; border-radius: 10px; margin-top: 20px; border: 1px solid rgba(255,255,255,0.1);">
+            <p style="font-size: 0.85rem; color: #bbb; margin: 0; line-height: 1.4;">
+                <b>Disclaimer:</b> Live prices are subject to change based on shipping location, seller ratings, and real-time bank offers. 
+                Prices marked with <b>(Est.)</b> are intelligent estimates based on product categories when specific data is unavailable.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
 
     else:
         st.info("👈 Upload an image to start searching.")
