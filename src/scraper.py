@@ -88,12 +88,12 @@ class WebScraper:
             lens_resp = requests.get("https://serpapi.com/search", params=lens_params, timeout=30)
             lens_data = lens_resp.json()
             
-            # identification
+            # identification (Prioritize Visual Matches for accuracy)
             search_query = "Product"
-            if "knowledge_graph" in lens_data and lens_data["knowledge_graph"]:
-                search_query = lens_data["knowledge_graph"][0].get("title", "Product")
-            elif "visual_matches" in lens_data and lens_data["visual_matches"]:
+            if "visual_matches" in lens_data and lens_data["visual_matches"]:
                 search_query = lens_data["visual_matches"][0].get("title", "Product")
+            elif "knowledge_graph" in lens_data and lens_data["knowledge_graph"]:
+                search_query = lens_data["knowledge_graph"][0].get("title", "Product")
             
             # Step 1: Collect actual store results found by Lens
             if "visual_matches" in lens_data:
