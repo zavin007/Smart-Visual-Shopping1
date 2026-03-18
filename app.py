@@ -403,7 +403,7 @@ def add_to_database(image, search_query):
         return False, str(e)
     
     return False, "Unknown error"
-
+    
 # Main Layout
 col1, col2 = st.columns([1, 2])
 
@@ -423,7 +423,7 @@ with col1:
         camera_file = st.camera_input("Take a picture")
         if camera_file:
             image_source = camera_file
-
+    
     if image_source is not None:
         image = Image.open(image_source)
         st.image(image, caption='Query Image', use_container_width=True)
