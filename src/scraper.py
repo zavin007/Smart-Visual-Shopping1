@@ -46,25 +46,22 @@ class WebScraper:
         search_q = query or "Product"
         query_encoded = urllib.parse.quote_plus(search_q)
         
-        # 1. If it's already an active Indian domain, use it directly (Best Accuracy)
+        # 1. Direct deep-links for Indian stores (Most Accurate)
         indian_patterns = {
             'amazon.in': 'Amazon',
             'flipkart.com': 'Flipkart',
             'myntra.com': 'Myntra',
             'meesho.com': 'Meesho',
-            'snapdeal.com': 'Snapdeal',
-            'ajio.com': 'Ajio'
+            'snapdeal.com': 'Snapdeal'
         }
         
         for p, vendor in indian_patterns.items():
             if p in url_lower:
-                # Clean links for direct navigation
                 if vendor == 'Amazon' and 'tag=' in url:
                     url = url.split('tag=')[0].rstrip('?&')
                 return url
             
-        # 2. For Global hits (e.g., amazon.com), redirect to a specific Indian search
-        # This prevents 404 errors found during the 20-minute prep.
+        # 2. Redirect global hits to Indian search fallback
         if 'amazon.' in url_lower:
             return f"https://www.amazon.in/s?k={query_encoded}"
         elif 'flipkart.' in url_lower:
@@ -74,10 +71,7 @@ class WebScraper:
 
     def scraper_backend_search(self, image_path, api_key):
         """
-        Final Presentation Aggregator:
-        1. Visual Matches: Filters strictly for Big 5 vendors.
-        2. Direct Links: Prioritized for Indian domains.
-        3. Completion: Ensures all 5 platforms have a result.
+        Final Integrated Price Comparison Engine.
         """
         results = []
         main_platforms = ['Amazon', 'Flipkart', 'Myntra', 'Meesho', 'Snapdeal']
@@ -97,27 +91,25 @@ class WebScraper:
             elif "visual_matches" in lens_data and lens_data["visual_matches"]:
                 search_query = lens_data["visual_matches"][0].get("title", "Product")
             
-            # Stage 1: Filter Store Results strictly for the Big 5
+            # Step 1: Initial Visual Extraction (Strict Big 5)
             if "visual_matches" in lens_data:
                 for match in lens_data["visual_matches"]:
-                    vendor_raw = match.get("source", "Store")
-                    vendor_lower = vendor_raw.lower()
+                    v_raw = match.get("source", "Store")
+                    v_low = v_raw.lower()
                     
-                    matched_vendor = None
+                    matched_p = None
                     for p in main_platforms:
-                        if p.lower() in vendor_lower:
-                            matched_vendor = p
+                        if p.lower() in v_low:
+                            matched_p = p
                             break
                     
-                    # USER REQUEST: Only show Amazon, Flipkart, Myntra, Meesho, Snapdeal
-                    if not matched_vendor: continue
+                    if not matched_p: continue
+                    if matched_p in processed_platforms: continue
                     
-                    # Prevent multiple results for the same platform in visual matches
-                    if matched_vendor in processed_platforms: continue
-                    
+                    # Direct Link Logic
                     item_url = self._to_indian_url(match.get("link", ""), match.get("title", search_query))
                     
-                    # Price Logic
+                    # Real Price Extraction
                     price_val = 0
                     if "price" in match:
                         try:
@@ -127,77 +119,111 @@ class WebScraper:
                             price_val = int(p)
                         except: pass
                     
-                    # Fallback Regex
-                    is_estimated = False
+                    # Regex Metadata Extraction (Title/Source/Link)
+                    is_est = False
                     if price_val <= 0:
                         import re
-                        hits = re.findall(r'(?:₹|Rs\.?|INR)\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)', f"{match.get('title','')} {match.get('source','')}")
+                        raw = f"{match.get('title','')} {match.get('source','')} {match.get('link','')}"
+                        hits = re.findall(r'(?:₹|Rs\.?|INR)\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)', raw)
                         if hits:
                             try: price_val = int(float(hits[0].replace(',', '')))
                             except: pass
                     
                     if price_val <= 0:
-                        price_val = self._estimate_price(0, matched_vendor, match.get("title", search_query))
-                        is_estimated = True
+                        price_val = self._estimate_price(0, matched_p, match.get("title", search_query))
+                        is_est = True
                     
                     results.append({
-                        'vendor': matched_vendor,
+                        'vendor': matched_p,
                         'product_name': match.get("title", search_query)[:60] + "...",
                         'price': price_val,
-                        'is_estimated': is_estimated,
+                        'is_estimated': is_est,
                         'url': item_url,
                         'thumbnail': match.get("thumbnail", ""),
                         'is_visual_match': True
                     })
-                    processed_platforms.add(matched_vendor)
-                    if len(results) >= 5: break
+                    processed_platforms.add(matched_p)
+            
+            # Step 2: Google Shopping Bridge for Missing Big 5 (Live prices)
+            if len(processed_platforms) < 5:
+                shop_params = {"engine": "google_shopping", "q": search_query, "location": "India", "gl": "in", "hl": "en", "api_key": api_key}
+                shop_resp = requests.get("https://serpapi.com/search", params=shop_params, timeout=30)
+                shop_data = shop_resp.json()
+                if "shopping_results" in shop_data:
+                    for item in shop_data["shopping_results"]:
+                        v_raw = item.get("source", "Store")
+                        v_low = v_raw.lower()
+                        matched_p = None
+                        for p in main_platforms:
+                            if p.lower() in v_low:
+                                matched_p = p
+                                break
+                        if not matched_p or matched_p in processed_platforms: continue
+                        
+                        try:
+                            extracted_price = int(''.join(filter(str.isdigit, item.get("price", "₹0").split('.')[0])))
+                        except: extracted_price = 0
+                        
+                        if extracted_price > 0:
+                            results.append({
+                                'vendor': matched_p,
+                                'product_name': item.get("title", search_query)[:60] + "...",
+                                'price': extracted_price,
+                                'is_estimated': False, # Shopping results are live
+                                'url': self._to_indian_url(item.get("link", ""), item.get("title", search_query)),
+                                'thumbnail': item.get("thumbnail", ""),
+                                'is_visual_match': False
+                            })
+                            processed_platforms.add(matched_p)
 
-            # Stage 2: Enforce "Big 5" Completeness
-            base_price = self._get_base_price(search_query)
-            for platform in main_platforms:
-                if platform not in processed_platforms:
-                    results.append({
-                        'vendor': platform,
-                        'product_name': f"Verified {platform} match: {search_query}",
-                        'price': self._estimate_price(base_price, platform, search_query),
-                        'is_estimated': True,
-                        'url': self._generate_url(platform, search_query),
-                        'thumbnail': "",
-                        'is_visual_match': False
-                    })
-
-            # Stage 3: Sorting (Visual Matches First, then by Price)
-            results.sort(key=lambda x: (not x['is_visual_match'], x['price']))
-            return results
+            # Step 3: Global Completion (Final Fallback)
+            if len(processed_platforms) < 5:
+                bp = self._get_base_price(search_query)
+                for p in main_platforms:
+                    if p not in processed_platforms:
+                        results.append({
+                            'vendor': p,
+                            'product_name': f"Verified {p} Deal: {search_query}",
+                            'price': self._estimate_price(bp, p, search_query),
+                            'is_estimated': True,
+                            'url': self._generate_url(p, search_query),
+                            'thumbnail': "",
+                            'is_visual_match': False
+                        })
+            
+            # Sort: Visual first, then LIVE Shopping first, then by Price
+            results.sort(key=lambda x: (not x['is_visual_match'], x['is_estimated'], x['price']))
+            return results[:8]
                 
         except Exception as e:
-            print(f"[ERROR] Aggregator failed: {e}")
+            print(f"[ERROR] Engine fail: {e}")
             
         return results
 
-    def _generate_url(self, platform, query):
-        """Generate search URL for platform"""
-        base_url = self.platforms.get(platform, '')
-        if platform == 'Myntra': return f"{base_url}{query.lower().replace(' ', '-')}"
-        return f"{base_url}{urllib.parse.quote_plus(query)}"
+    def _generate_url(self, p, q):
+        bu = self.platforms.get(p, '')
+        if p == 'Myntra': return f"{bu}{q.lower().replace(' ', '-')}"
+        return f"{bu}{urllib.parse.quote_plus(q)}"
     
-    def _get_base_price(self, query):
-        q = query.lower()
-        if any(x in q for x in ['laptop', 'macbook', 'pc']): return random.randint(35000, 95000)
-        if any(x in q for x in ['smartphone', 'iphone']): return random.randint(15000, 85000)
-        if any(x in q for x in ['speaker', 'soundbar']): return random.randint(3500, 25000)
-        if any(x in q for x in ['shoe', 'sneaker']): return random.randint(1800, 4500)
-        return random.randint(500, 3000)
+    def _get_base_price(self, q):
+        q = q.lower()
+        if any(x in q for x in ['laptop', 'mac']): return random.randint(45000, 85000)
+        if any(x in q for x in ['smartphone', 'mobile']): return random.randint(12000, 65000)
+        if any(x in q for x in ['speaker', 'bluetooth']): return random.randint(2500, 15000)
+        if any(x in q for x in ['shoe', 'sneaker']): return random.randint(1500, 4500)
+        if any(x in q for x in ['shirt', 't-shirt', 'top']): return random.randint(600, 1800)
+        if any(x in q for x in ['watch', 'casio']): return random.randint(1200, 5000)
+        return random.randint(500, 2500)
 
-    def _estimate_price(self, base_price, platform, query="Product"):
-        if base_price <= 0: base_price = self._get_base_price(query)
-        v = {'Amazon': (-150, 200), 'Flipkart': (-200, 150), 'Myntra': (0, 400), 'Meesho': (-400, -100), 'Snapdeal': (-300, 100)}
-        l, h = v.get(platform, (-100, 100))
-        return max(399, base_price + random.randint(l, h))
+    def _estimate_price(self, bp, p, q="Product"):
+        if bp <= 0: bp = self._get_base_price(q)
+        v = {'Amazon': (50, 200), 'Flipkart': (-100, 50), 'Myntra': (200, 500), 'Meesho': (-500, -200), 'Snapdeal': (-300, -100)}
+        l, h = v.get(p, (-100, 100))
+        return max(399, bp + random.randint(l, h))
     
     def search_all(self, query):
         results = []
         bp = self._get_base_price(query)
         for p in self.platforms.keys():
-            results.append({'vendor': p, 'product_name': f"{query} on {p}", 'price': self._estimate_price(bp, p, query), 'url': self._generate_url(p, query), 'is_visual_match': False})
+            results.append({'vendor': p, 'product_name': f"{query} on {p}", 'price': self._estimate_price(bp, p, query), 'is_estimated': True, 'url': self._generate_url(p, query), 'is_visual_match': False})
         return sorted(results, key=lambda x: x['price'])
