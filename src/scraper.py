@@ -46,7 +46,6 @@ class WebScraper:
         search_q = query or "Product"
         query_encoded = urllib.parse.quote_plus(search_q)
         
-        # 1. Direct deep-links for Indian stores (Most Accurate)
         indian_patterns = {
             'amazon.in': 'Amazon',
             'flipkart.com': 'Flipkart',
@@ -61,7 +60,6 @@ class WebScraper:
                     url = url.split('tag=')[0].rstrip('?&')
                 return url
             
-        # 2. Redirect global hits to Indian search fallback
         if 'amazon.' in url_lower:
             return f"https://www.amazon.in/s?k={query_encoded}"
         elif 'flipkart.' in url_lower:
@@ -91,25 +89,22 @@ class WebScraper:
             elif "visual_matches" in lens_data and lens_data["visual_matches"]:
                 search_query = lens_data["visual_matches"][0].get("title", "Product")
             
-            # Step 1: Initial Visual Extraction (Strict Big 5)
+            # 1. Visual Matches (Direct)
             if "visual_matches" in lens_data:
                 for match in lens_data["visual_matches"]:
                     v_raw = match.get("source", "Store")
                     v_low = v_raw.lower()
-                    
                     matched_p = None
                     for p in main_platforms:
                         if p.lower() in v_low:
                             matched_p = p
                             break
+                    if not matched_p or matched_p in processed_platforms: continue
                     
-                    if not matched_p: continue
-                    if matched_p in processed_platforms: continue
-                    
-                    # Direct Link Logic
+                    # Direct Navigation Links
                     item_url = self._to_indian_url(match.get("link", ""), match.get("title", search_query))
                     
-                    # Real Price Extraction
+                    # Price Analysis
                     price_val = 0
                     if "price" in match:
                         try:
@@ -119,7 +114,6 @@ class WebScraper:
                             price_val = int(p)
                         except: pass
                     
-                    # Regex Metadata Extraction (Title/Source/Link)
                     is_est = False
                     if price_val <= 0:
                         import re
@@ -133,18 +127,10 @@ class WebScraper:
                         price_val = self._estimate_price(0, matched_p, match.get("title", search_query))
                         is_est = True
                     
-                    results.append({
-                        'vendor': matched_p,
-                        'product_name': match.get("title", search_query)[:60] + "...",
-                        'price': price_val,
-                        'is_estimated': is_est,
-                        'url': item_url,
-                        'thumbnail': match.get("thumbnail", ""),
-                        'is_visual_match': True
-                    })
+                    results.append({'vendor': matched_p, 'product_name': match.get("title", search_query)[:60] + "...", 'price': price_val, 'is_estimated': is_est, 'url': item_url, 'thumbnail': match.get("thumbnail", ""), 'is_visual_match': True})
                     processed_platforms.add(matched_p)
-            
-            # Step 2: Google Shopping Bridge for Missing Big 5 (Live prices)
+
+            # 2. Shopping Guard (Live prices)
             if len(processed_platforms) < 5:
                 shop_params = {"engine": "google_shopping", "q": search_query, "location": "India", "gl": "in", "hl": "en", "api_key": api_key}
                 shop_resp = requests.get("https://serpapi.com/search", params=shop_params, timeout=30)
@@ -165,33 +151,17 @@ class WebScraper:
                         except: extracted_price = 0
                         
                         if extracted_price > 0:
-                            results.append({
-                                'vendor': matched_p,
-                                'product_name': item.get("title", search_query)[:60] + "...",
-                                'price': extracted_price,
-                                'is_estimated': False, # Shopping results are live
-                                'url': self._to_indian_url(item.get("link", ""), item.get("title", search_query)),
-                                'thumbnail': item.get("thumbnail", ""),
-                                'is_visual_match': False
-                            })
+                            results.append({'vendor': matched_p, 'product_name': item.get("title", search_query)[:60] + "...", 'price': extracted_price, 'is_estimated': False, 'url': self._to_indian_url(item.get("link", ""), item.get("title", search_query)), 'thumbnail': item.get("thumbnail", ""), 'is_visual_match': False})
                             processed_platforms.add(matched_p)
 
-            # Step 3: Global Completion (Final Fallback)
+            # 3. Clean Completion
             if len(processed_platforms) < 5:
                 bp = self._get_base_price(search_query)
                 for p in main_platforms:
                     if p not in processed_platforms:
-                        results.append({
-                            'vendor': p,
-                            'product_name': f"Verified {p} Deal: {search_query}",
-                            'price': self._estimate_price(bp, p, search_query),
-                            'is_estimated': True,
-                            'url': self._generate_url(p, search_query),
-                            'thumbnail': "",
-                            'is_visual_match': False
-                        })
+                        results.append({'vendor': p, 'product_name': f"Verified {p} Deal: {search_query}", 'price': self._estimate_price(bp, p, search_query), 'is_estimated': True, 'url': self._generate_url(p, search_query), 'thumbnail': "", 'is_visual_match': False})
             
-            # Sort: Visual first, then LIVE Shopping first, then by Price
+            # User Preference: Visual first, then LIVE, then Preis
             results.sort(key=lambda x: (not x['is_visual_match'], x['is_estimated'], x['price']))
             return results[:8]
                 
@@ -208,16 +178,19 @@ class WebScraper:
     def _get_base_price(self, q):
         q = q.lower()
         if any(x in q for x in ['laptop', 'mac']): return random.randint(45000, 85000)
-        if any(x in q for x in ['smartphone', 'mobile']): return random.randint(12000, 65000)
-        if any(x in q for x in ['speaker', 'bluetooth']): return random.randint(2500, 15000)
-        if any(x in q for x in ['shoe', 'sneaker']): return random.randint(1500, 4500)
-        if any(x in q for x in ['shirt', 't-shirt', 'top']): return random.randint(600, 1800)
-        if any(x in q for x in ['watch', 'casio']): return random.randint(1200, 5000)
-        return random.randint(500, 2500)
+        if any(x in q for x in ['smartphone', 'mobile', 'iphone']): return random.randint(12000, 65000)
+        if any(x in q for x in ['speaker', 'soundbar', 'bluetooth']): return random.randint(8500, 35000)
+        if any(x in q for x in ['shoe', 'sneaker', 'nike', 'adidas']): return random.randint(2800, 7500)
+        if any(x in q for x in ['shirt', 'kurta', 'top']): return random.randint(800, 2400)
+        if any(x in q for x in ['bag', 'backpack']): return random.randint(1200, 4500)
+        if any(x in q for x in ['watch', 'casio', 'premium']): return random.randint(2500, 8500)
+        if any(x in q for x in ['coffee', 'maker', 'espresso']): return random.randint(2500, 11000)
+        if any(x in q for x in ['bottle', 'flask', 'borosil']): return random.randint(350, 1800)
+        return random.randint(800, 3500)
 
     def _estimate_price(self, bp, p, q="Product"):
         if bp <= 0: bp = self._get_base_price(q)
-        v = {'Amazon': (50, 200), 'Flipkart': (-100, 50), 'Myntra': (200, 500), 'Meesho': (-500, -200), 'Snapdeal': (-300, -100)}
+        v = {'Amazon': (50, 250), 'Flipkart': (-100, 100), 'Myntra': (300, 800), 'Meesho': (-600, -200), 'Snapdeal': (-400, -100)}
         l, h = v.get(p, (-100, 100))
         return max(399, bp + random.randint(l, h))
     
