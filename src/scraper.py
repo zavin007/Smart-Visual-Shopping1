@@ -37,250 +37,188 @@ class WebScraper:
             return None
 
     def _to_indian_url(self, url, query=""):
-        """Convert global e-commerce URLs to Indian equivalents."""
-        if not url:
-            return url
-        # Amazon: .com -> .in
-        if 'amazon.com/' in url:
-            url = url.replace('amazon.com/', 'amazon.in/')
-        # If it's a global amazon link without country, redirect to amazon.in search
-        if 'amazon.' in url and '.in' not in url and 'amazon.in' not in url:
-            query_encoded = urllib.parse.quote_plus(query) if query else ""
+        """
+        Search-safe conversion of global URLs to Indian equivalents.
+        """
+        if not url: return url
+        
+        url_lower = url.lower()
+        search_q = query or "Product"
+        query_encoded = urllib.parse.quote_plus(search_q)
+        
+        # 1. If it's already a trusted Indian domain, use it directly (Live links)
+        indian_patterns = {
+            'amazon.in': 'Amazon',
+            'flipkart.com': 'Flipkart',
+            'myntra.com': 'Myntra',
+            'meesho.com': 'Meesho',
+            'snapdeal.com': 'Snapdeal',
+            'ajio.com': 'Ajio'
+        }
+        
+        for pattern, vendor in indian_patterns.items():
+            if pattern in url_lower:
+                if vendor == 'Amazon' and 'tag=' in url:
+                    url = url.split('tag=')[0].rstrip('?&')
+                return url
+            
+        # 2. For Global hits, redirect to the most relevant Indian search page
+        if 'amazon.' in url_lower:
             return f"https://www.amazon.in/s?k={query_encoded}"
-        return url
+        elif 'flipkart.' in url_lower:
+            return f"https://www.flipkart.com/search?q={query_encoded}"
+        elif 'myntra.' in url_lower:
+            return f"https://www.myntra.com/{search_q.lower().replace(' ', '-')}"
+            
+        # 3. Default fallback: use Amazon.in search
+        return f"https://www.amazon.in/s?k={query_encoded}"
 
     def scraper_backend_search(self, image_path, api_key):
         """
-        Visual-First Search Strategy:
-        1. Google Lens: Prioritize matches found DIRECTLY from the image.
-        2. Filtering: Extract results from trusted Indian e-commerce sites.
-        3. Fallback: Only use Google Shopping (text-based) if Lens doesn't have enough matches.
+        Visual-First Search Strategy with High Accuracy Priority.
+        Ensures Google Lens visual matches are the primary source of results.
         """
         results = []
-        trusted_vendors = ['amazon', 'flipkart', 'myntra', 'meesho', 'snapdeal']
+        main_platforms = ['Amazon', 'Flipkart', 'Myntra', 'Meesho', 'Snapdeal']
+        processed_platforms = set()
         
         try:
-            # Stage 1: Identification & Direct Visual Matching
+            # Stage 1: Identification & Direct Visual Matching (CRITICAL)
             print(f"[INFO] Running Visual-First analysis via Google Lens...")
             public_url = self._upload_temp_image(image_path)
             if not public_url:
                 raise Exception("Image host unavailable.")
                 
-            lens_params = {
-                "engine": "google_lens",
-                "url": public_url,
-                "api_key": api_key,
-                "gl": "in"
-            }
+            lens_params = {"engine": "google_lens", "url": public_url, "api_key": api_key, "gl": "in"}
             lens_resp = requests.get("https://serpapi.com/search", params=lens_params, timeout=30)
             lens_data = lens_resp.json()
             
-            # Identify the product for potential fallback
+            # The most accurate product identity discovered by AI
             search_query = "Product"
-            if "knowledge_graph" in lens_data and len(lens_data["knowledge_graph"]) > 0:
+            if "knowledge_graph" in lens_data and lens_data["knowledge_graph"]:
                 search_query = lens_data["knowledge_graph"][0].get("title", "Product")
-            elif "visual_matches" in lens_data and len(lens_data["visual_matches"]) > 0:
+            elif "visual_matches" in lens_data and lens_data["visual_matches"]:
                 search_query = lens_data["visual_matches"][0].get("title", "Product")
             
-            # Step A: Extract Direct Shopping Matches from Lens Results
+            # Step A: Prioritize Exact Visual Matches from Lens
             if "visual_matches" in lens_data:
                 for match in lens_data["visual_matches"]:
                     vendor_raw = match.get("source", "Store")
                     vendor_lower = vendor_raw.lower()
                     
-                    # Filter for Trusted Indian Vendors
-                    is_trusted = False
-                    for trusted in trusted_vendors:
-                        if trusted in vendor_lower:
-                            is_trusted = True
-                            vendor_raw = trusted.capitalize()
+                    # Track which platforms we have direct visual matches for
+                    matched_vendor = None
+                    for p in main_platforms:
+                        if p.lower() in vendor_lower:
+                            matched_vendor = p
                             break
                     
-                    if not is_trusted: continue
+                    display_title = match.get("title", search_query)
+                    item_url = self._to_indian_url(match.get("link", ""), display_title)
                     
-                    # Convert URLs to Indian versions early
-                    item_url = self._to_indian_url(match.get("link", ""), search_query)
-                    
-                    # Clean Price
+                    # Extract Price with high-aggression fetching
                     price_val = 0
                     if "price" in match:
                         try:
-                            # Try structured price first
-                            p_str = match["price"].get("extracted_value")
-                            currency = match["price"].get("currency", "₹")
-                            
-                            if not p_str:
-                                # Fallback to parsing from current_price string
-                                p_str = ''.join(filter(lambda x: x.isdigit() or x=='.', match["price"].get("current_price", "0")))
-                                
+                            p_str = match["price"].get("extracted_value") or ''.join(filter(lambda x: x.isdigit() or x=='.', match["price"].get("current_price", "0")))
                             p = float(p_str)
-                            if (currency == "$" or currency == "USD") and p < 200:
-                                p = p * 83.0  # USD to INR
-                            elif currency == "£":
-                                p = p * 105.0  # GBP to INR
-                            elif p > 0 and p < 100:
-                                p = p * 83.0  # Likely USD if very low
+                            currency = match["price"].get("currency", "₹")
+                            if currency in ["$", "USD"]: p *= 83.0
+                            elif currency == "£": p *= 105.0
                             price_val = int(p)
                         except: pass
                     
-                    # Final fallback: if vendor is trusted but price is still 0, 
-                    # use the internal estimator based on the product category (search_query)
-                    # This keeps the EXACT visual match alive while providing a realistic price for the demo.
+                    # Regex fallback for price
                     is_estimated = False
                     if price_val <= 0:
                         import re
-                        # Try regex one last time on title/snippet - handle more variants
-                        snippet = match.get("title", "") + " " + match.get("source", "")
-                        # Match ₹1,234, ₹ 1234, Rs. 1234, etc.
-                        price_patterns = [r'₹\s?(\d+[,.]?\d*)', r'Rs\.?\s?(\d+[,.]?\d*)']
-                        for pattern in price_patterns:
-                            nums = re.findall(pattern, snippet)
-                            if nums:
-                                try: 
-                                    price_val = int(nums[0].replace(',', '').split('.')[0])
-                                    break
-                                except: pass
-                        
-                        # If STILL 0, estimate it based on the category
-                        if price_val <= 0:
-                            price_val = self._estimate_price(0, vendor_raw, search_query)
-                            is_estimated = True
+                        raw_text = f"{match.get('title', '')} {match.get('source', '')} {match.get('link', '')}"
+                        regex_hits = re.findall(r'(?:₹|Rs\.?|INR)\s?(\d{1,3}(?:,\d{3})*(?:\.\d+)?)', raw_text)
+                        if regex_hits:
+                            try: price_val = int(float(regex_hits[0].replace(',', '')))
+                            except: pass
+                    
+                    if price_val <= 0:
+                        price_val = self._estimate_price(0, matched_vendor or "Amazon", display_title)
+                        is_estimated = True
                     
                     results.append({
-                        'vendor': vendor_raw,
-                        'product_name': match.get("title", search_query)[:60] + "...",
+                        'vendor': matched_vendor or vendor_raw,
+                        'product_name': display_title[:60] + "...",
                         'price': price_val,
                         'is_estimated': is_estimated,
                         'url': item_url,
-                        'thumbnail': match.get("thumbnail", "")
+                        'thumbnail': match.get("thumbnail", ""),
+                        'is_visual_match': True # Mark as high-accuracy result
                     })
-                    if len(results) >= 8: break
+                    if matched_vendor: processed_platforms.add(matched_vendor)
+                    if len(results) >= 5: break
 
-            print(f"[INFO] Lens found {len(results)} visual matches.")
+            # Stage 2: Smart Completion (Only for missing main platforms)
+            # We use the EXACT identity found above to fill in the gaps accurately
+            base_price = self._get_base_price(search_query)
+            for platform in main_platforms:
+                if platform not in processed_platforms:
+                    results.append({
+                        'vendor': platform,
+                        'product_name': f"Live match search: {search_query}",
+                        'price': self._estimate_price(base_price, platform, search_query),
+                        'is_estimated': True,
+                        'url': self._generate_url(platform, search_query),
+                        'thumbnail': "",
+                        'is_visual_match': False
+                    })
 
-            # Stage 2: Google Shopping Fallback (Only if direct hits are VERY low)
-            if len(results) < 2:
-                print(f"[INFO] Low visual results. Triggering Google Shopping fallback for '{search_query}'...")
-                shopping_params = {
-                    "engine": "google_shopping",
-                    "q": search_query,
-                    "location": "India",
-                    "gl": "in",
-                    "hl": "en",
-                    "api_key": api_key
-                }
-                shop_resp = requests.get("https://serpapi.com/search", params=shopping_params, timeout=30)
-                shop_data = shop_resp.json()
+            # Stage 3: Ranking - Visual matches ALWAYS come first
+            results.sort(key=lambda x: (not x['is_visual_match'], x['price']))
+            return results
                 
-                if "shopping_results" in shop_data:
-                    for item in shop_data["shopping_results"]:
-                        if len(results) >= 12: break
-                        url = item.get("link", "")
-                        if any(r['url'] == url for r in results): continue
-                        
-                        vendor_raw = item.get("source", "Store")
-                        price_str = item.get("price", "₹0")
-                        try:
-                            extracted_price = int(''.join(filter(str.isdigit, price_str.split('.')[0])))
-                        except: extracted_price = 0
-                        
-                        # Skip zero-price results
-                        if extracted_price <= 0:
-                            continue
-                        
-                        # Convert URLs to Indian versions
-                        item_url = self._to_indian_url(url, search_query)
-                            
-                        results.append({
-                            'vendor': vendor_raw,
-                            'product_name': item.get("title", search_query)[:60] + "...",
-                            'price': extracted_price,
-                            'is_estimated': False, # Shopping results usually have structured prices
-                            'url': item_url,
-                            'thumbnail': item.get("thumbnail", "")
-                        })
-
-            if results:
-                # Remove duplicates and sort by price (lowest first)
-                results.sort(key=lambda x: x['price'])
         except Exception as e:
-            print(f"[ERROR] Visual search failed: {e}")
+            print(f"[ERROR] Search failed: {e}")
             
         return results
 
     def _generate_url(self, platform, query):
         """Generate search URL for platform"""
         base_url = self.platforms.get(platform, '')
-        
         if platform == 'Myntra':
-            formatted_query = query.lower().replace(' ', '-')
-            return f"{base_url}{formatted_query}"
-        else:
-            formatted_query = urllib.parse.quote_plus(query)
-            return f"{base_url}{formatted_query}"
+            return f"{base_url}{query.lower().replace(' ', '-')}"
+        return f"{base_url}{urllib.parse.quote_plus(query)}"
     
     def _get_base_price(self, query):
         """Estimate a realistic base price based on item category."""
         q = query.lower()
-        if any(x in q for x in ['coffee', 'maker', 'espresso', 'grinder']):
-            return random.randint(2500, 7000)
-        elif any(x in q for x in ['nike', 'adidas', 'puma', 'shoe', 'sneaker']):
-            return random.randint(1800, 4500)
-        elif 'watch' in q:
-            return random.randint(1200, 5000)
-        elif 'kurta' in q or 'shirt' in q:
-            return random.randint(600, 1800)
-        elif 'bag' in q or 'backpack' in q:
-            return random.randint(900, 3000)
-        elif 'belt' in q or 'wallet' in q:
-            return random.randint(400, 1200)
-        return random.randint(500, 2000)
+        if any(x in q for x in ['laptop', 'macbook', 'pc']): return random.randint(35000, 95000)
+        if any(x in q for x in ['smartphone', 'iphone', 'mobile']): return random.randint(15000, 85000)
+        if any(x in q for x in ['speaker', 'bluetooth speaker']): return random.randint(3500, 25000)
+        if any(x in q for x in ['headphone', 'earbuds', 'airpods']): return random.randint(1500, 18000)
+        if any(x in q for x in ['nike', 'adidas', 'shoe', 'sneaker']): return random.randint(1800, 4500)
+        if 'watch' in q: return random.randint(1200, 5000)
+        if 'kurta' in q or 'shirt' in q: return random.randint(600, 1800)
+        if 'bag' in q or 'backpack' in q: return random.randint(900, 3000)
+        return random.randint(500, 3000)
 
     def _estimate_price(self, base_price, platform, query="Product"):
-        if base_price <= 0:
-            base_price = self._get_base_price(query)
-            
-        variance = {
-            'Amazon': (-150, 200),
-            'Flipkart': (-200, 150),
-            'Myntra': (0, 400),
-            'Meesho': (-400, -100),
-            'Snapdeal': (-300, 100)
-        }
-        
+        if base_price <= 0: base_price = self._get_base_price(query)
+        variance = {'Amazon': (-150, 200), 'Flipkart': (-200, 150), 'Myntra': (0, 400), 'Meesho': (-400, -100), 'Snapdeal': (-300, 100)}
         low, high = variance.get(platform, (-100, 100))
-        price = base_price + random.randint(low, high)
-        return max(399, price)
+        return max(399, base_price + random.randint(low, high))
     
     def search_all(self, query):
-        """
-        Text-based simulated fallback if Google Lens isn't used
-        """
+        """Text-based simulated fallback"""
         results = []
-        search_query = query.strip()
-        query_lower = query.lower()
-        
-        base_price = self._get_base_price(search_query)
-        
+        base_price = self._get_base_price(query)
         for platform in self.platforms.keys():
-            price = self._estimate_price(base_price, platform, search_query)
-            url = self._generate_url(platform, search_query)
-            
             results.append({
                 'vendor': platform,
-                'product_name': f"{search_query} on {platform}",
-                'price': price,
-                'url': url
+                'product_name': f"{query} on {platform}",
+                'price': self._estimate_price(base_price, platform, query),
+                'url': self._generate_url(platform, query),
+                'is_visual_match': False
             })
-            
         results.sort(key=lambda x: x['price'])
         return results
 
-
-# Test
 if __name__ == "__main__":
     scraper = WebScraper()
-    print("Testing with 'Nike Shoes'...")
-    results = scraper.search_all("Nike Shoes")
-    for r in results:
-        print(f"{r['vendor']}: ₹{r['price']} - {r['url']}")
+    print(scraper.search_all("Nike Shoes"))

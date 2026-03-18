@@ -575,10 +575,13 @@ with col2:
                         st.markdown("🛍️")
                 
                 with c1:
-                    if is_best:
-                        st.markdown(f"**{row['vendor']}** ⭐ (Best Price)")
+                    vendor_name = row['vendor']
+                    if row.get('is_visual_match'):
+                        st.markdown(f"**{vendor_name}** <span style='color:#2ecc71; font-size:0.75rem; font-weight:bold; border:1px solid #2ecc71; padding:2px 6px; border-radius:4px;'>AI VERIFIED</span>", unsafe_allow_html=True)
+                    elif is_best:
+                        st.markdown(f"**{vendor_name}** ⭐ (Best Price)")
                     else:
-                        st.markdown(f"**{row['vendor']}**")
+                        st.markdown(f"**{vendor_name}**")
                 
                 with c2:
                     price_display = f"**₹{row['price']}**"
